@@ -1,2 +1,5 @@
-# Tool for testing playback
-playback_tool
+# Output of the build
+/target
+
+# Self generated files
+/outputs
