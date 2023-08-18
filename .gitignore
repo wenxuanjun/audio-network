@@ -1,5 +1,5 @@
 # Output of the build
 /target
 
-# Self generated files
-/outputs
+# Audio files for testing
+*.wav

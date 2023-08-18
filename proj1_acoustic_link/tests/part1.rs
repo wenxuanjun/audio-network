@@ -1,11 +1,12 @@
 use jack::ProcessScope;
-use proj1_acoustic_link::audio::{Audio, AudioPorts, AudioWriter};
+use proj1_acoustic_link::audio::{Audio, AudioPorts};
 
-fn main() {
+#[test]
+fn part1_ck1() {
     let audio = Audio::new().unwrap();
 
     let sample_rate = audio.sample_rate;
-    let audio_output = AudioWriter::file("output.wav", sample_rate as u32);
+    let audio_output = AudioWriter::file("shit", sample_rate as u32);
     audio.init_writer(audio_output);
 
     println!("Latency of port: {:.2} ms", audio.get_latency());
