@@ -1,42 +1,53 @@
+use std::time::Duration;
 use jack::ProcessScope;
-use proj1_acoustic_link::audio::{Audio, AudioPorts, AudioWriter};
+use proj1_acoustic_link::audio::{Audio, AudioPorts};
+use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlags};
+
+const TEST_SECONDS: usize = 10;
 
 fn main() {
     let audio = Audio::new().unwrap();
+    audio.init_client().unwrap();
 
-    let sample_rate = audio.sample_rate;
-    let audio_output = AudioWriter::file("output.wav", sample_rate as u32);
-    audio.init_writer(audio_output);
+    let sample_rate = audio.sample_rate.borrow().unwrap();
+    let audio_input = AudioPacket::buffer(sample_rate * TEST_SECONDS);
 
-    println!("Latency of port: {:.2} ms", audio.get_latency());
-
-    let Audio { timetick, writer, .. } = audio;
-
+    let audio_input_clone = audio_input.clone();
     let capture_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
         for sample in ports.capture.as_slice(&ps).iter() {
-            let mut writer = writer.lock().unwrap();
-            writer.as_mut().unwrap().write_sample(*sample);
-        }
-    };
-
-    let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
-        for sample in ports.playback.as_mut_slice(&ps).iter_mut() {
-            let mut time = timetick.lock().unwrap();
-            let multiplier = 2.0 * std::f32::consts::PI * *time;
-            *sample = (multiplier * 1000.0).sin() + (multiplier * 15000.0).sin();
-            *time += 1.0 / sample_rate as f32;
+            audio_input_clone.write_sample(*sample);
         }
     };
 
     audio.register(Box::new(capture_callback));
-    audio.register(Box::new(playback_callback));
 
+    println!("Beginning recording...");
     audio.activate();
 
-    println!("Press enter to end recording...");
-    let mut user_input = String::new();
-    std::io::stdin().read_line(&mut user_input).ok();
+    std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
-    println!("Deactivating client...");
-    audio.deactivate();
+    println!("Restarting and cleaning up...");
+    audio.deactivate(AudioDeactivateFlags::CleanRestart);
+
+    let timetick = &audio.timetick;
+    let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
+        let time = *timetick.read().unwrap() as f32;
+        let buffer = ports.playback.as_mut_slice(&ps);
+        for (index, sample) in buffer.iter_mut().enumerate() {
+            let current_sample = (index as f32 + time) as usize;
+            *sample = match audio_input.read_sample(current_sample) {
+                Some(sample) => sample,
+                None => break,
+            };
+        }
+    };
+
+    println!("Beginning playback...");
+    audio.register(Box::new(playback_callback));
+    audio.activate();
+
+    std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
+
+    println!("Stopping playback...");
+    audio.deactivate(AudioDeactivateFlags::Deactivate);
 }

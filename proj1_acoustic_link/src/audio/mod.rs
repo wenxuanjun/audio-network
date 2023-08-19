@@ -1,5 +1,5 @@
-mod audio;
-pub use audio::{Audio, AudioPorts};
+pub mod audio;
+pub use audio::{Audio, AudioPorts, AudioDeactivateFlags};
 
-mod writer;
-pub use writer::AudioWriter;
+mod packet;
+pub use packet::AudioPacket;
