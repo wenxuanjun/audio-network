@@ -1,11 +1,12 @@
-use hound::{SampleFormat, WavSpec, WavWriter};
+use hound::{SampleFormat, WavSpec, WavWriter, WavReader};
 use std::fs::File;
-use std::io::BufWriter;
-use std::sync::{Mutex, Arc};
+use std::io::{BufReader, BufWriter};
+use std::sync::{Arc, Mutex};
 
 pub enum AudioPacketVariant {
     Buffer(Vec<f32>),
-    File(WavWriter<BufWriter<File>>),
+    Reader(WavReader<BufReader<File>>),
+    Writer(WavWriter<BufWriter<File>>),
 }
 
 #[derive(Clone)]
@@ -21,7 +22,14 @@ impl AudioPacket {
         }
     }
 
-    pub fn file(file: &'static str, sample_rate: u32) -> Self {
+    pub fn reader(file: &'static str) -> Self {
+        let reader = WavReader::open(file).unwrap();
+        Self {
+            inner: Arc::new(Mutex::new(AudioPacketVariant::Reader(reader))),
+        }
+    }
+
+    pub fn writer(file: &'static str, sample_rate: u32) -> Self {
         let wav_spec = WavSpec {
             channels: 1,
             bits_per_sample: 32,
@@ -30,15 +38,24 @@ impl AudioPacket {
         };
         let writer = WavWriter::create(file, wav_spec).unwrap();
         Self {
-            inner: Arc::new(Mutex::new(AudioPacketVariant::File(writer))),
+            inner: Arc::new(Mutex::new(AudioPacketVariant::Writer(writer))),
         }
     }
 
     pub fn read_sample(&self, index: usize) -> Option<f32> {
-        let container = self.inner.lock().unwrap();
-        match &*container {
+        let mut container = self.inner.lock().unwrap();
+        match &mut *container {
             AudioPacketVariant::Buffer(buffer) => buffer.get(index).copied(),
-            AudioPacketVariant::File(_) => panic!("Cannot read from file!"),
+            AudioPacketVariant::Reader(reader) => {
+                match reader.samples::<i16>().nth(0) {
+                    Some(sample) => {
+                        let amplitude = i16::MAX as f32;
+                        Some(sample.unwrap() as f32 / amplitude)
+                    },
+                    None => None,
+                }
+            },
+            AudioPacketVariant::Writer(_) => panic!("Cannot read from writer!"),
         }
     }
 
@@ -46,7 +63,8 @@ impl AudioPacket {
         let mut container = self.inner.lock().unwrap();
         match &mut *container {
             AudioPacketVariant::Buffer(buffer) => buffer.push(sample),
-            AudioPacketVariant::File(writer) => writer.write_sample(sample).unwrap(),
+            AudioPacketVariant::Reader(_) => panic!("Cannot write to reader!"),
+            AudioPacketVariant::Writer(writer) => writer.write_sample(sample).unwrap(),
         }
     }
 }

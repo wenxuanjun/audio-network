@@ -7,9 +7,8 @@ fn part2_ck1() {
     let audio = Audio::new().unwrap();
     audio.init_client().unwrap();
 
-    let sample_rate = audio.sample_rate.borrow().unwrap();
-
     let timetick = &audio.timetick;
+    let sample_rate = audio.sample_rate.borrow().unwrap();
 
     let sine_wave_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
         let time = *timetick.read().unwrap() as f32;
