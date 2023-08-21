@@ -25,7 +25,7 @@ pub struct AudioPorts {
     pub playback: Port<AudioOut>,
 }
 
-pub enum AudioDeactivateFlags {
+pub enum AudioDeactivateFlag {
     Deactivate,
     Restart,
     CleanRestart,
@@ -41,6 +41,8 @@ impl Audio {
             sample_rate: RefCell::new(None),
             callbacks: RwLock::new(Vec::new()),
         };
+
+        audio.init_client()?;
 
         Ok(Box::leak(Box::new(audio)))
     }
@@ -98,19 +100,19 @@ impl Audio {
         *self.active_client.borrow_mut() = Some(active_client);
     }
 
-    pub fn deactivate(&self, flags: AudioDeactivateFlags) {
+    pub fn deactivate(&self, flag: AudioDeactivateFlag) {
         let client = self.active_client.take().unwrap();
         client.deactivate().unwrap();
     
-        match flags {
-            AudioDeactivateFlags::Restart => {
+        match flag {
+            AudioDeactivateFlag::Restart => {
                 self.init_client().unwrap();
             },
-            AudioDeactivateFlags::CleanRestart => {
+            AudioDeactivateFlag::CleanRestart => {
                 self.clear_callbacks();
                 self.init_client().unwrap();
             },
-            AudioDeactivateFlags::Deactivate => {}
+            AudioDeactivateFlag::Deactivate => {}
         }
     }    
 

@@ -1,13 +1,12 @@
 use std::time::Duration;
 use proj1_acoustic_link::audio::{Audio, AudioCallback};
-use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlags};
+use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlag};
 
-const TEST_SECONDS: usize = 3;
+const TEST_SECONDS: usize = 10;
 
 #[test]
 fn part1_ck1() {
     let audio = Audio::new().unwrap();
-    audio.init_client().unwrap();
 
     let sample_rate = audio.sample_rate.borrow().unwrap();
     let audio_input = AudioPacket::buffer(sample_rate * TEST_SECONDS);
@@ -22,7 +21,7 @@ fn part1_ck1() {
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
     println!("Restarting and cleaning up...");
-    audio.deactivate(AudioDeactivateFlags::CleanRestart);
+    audio.deactivate(AudioDeactivateFlag::CleanRestart);
 
     let playback_callback = AudioCallback::playback(audio_input, &audio.timetick);
 
@@ -33,13 +32,12 @@ fn part1_ck1() {
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
     println!("Stopping playback...");
-    audio.deactivate(AudioDeactivateFlags::Deactivate);
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
 }
 
 #[test]
 fn part1_ck2() {
     let audio = Audio::new().unwrap();
-    audio.init_client().unwrap();
 
     let sample_rate = audio.sample_rate.borrow().unwrap();
     let audio_sample = AudioPacket::reader("Sample.wav");
@@ -56,7 +54,7 @@ fn part1_ck2() {
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
     println!("Restarting and cleaning up...");
-    audio.deactivate(AudioDeactivateFlags::CleanRestart);
+    audio.deactivate(AudioDeactivateFlag::CleanRestart);
 
     let playback_buffer = AudioCallback::playback(audio_input, &audio.timetick);
 
@@ -67,5 +65,5 @@ fn part1_ck2() {
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
     println!("Stopping playback...");
-    audio.deactivate(AudioDeactivateFlags::Deactivate);
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
 }
