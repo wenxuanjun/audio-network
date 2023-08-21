@@ -1,6 +1,5 @@
 use std::time::Duration;
-use jack::ProcessScope;
-use proj1_acoustic_link::audio::{Audio, AudioPorts};
+use proj1_acoustic_link::audio::{Audio, AudioCallback};
 use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlags};
 
 const TEST_SECONDS: usize = 10;
@@ -9,27 +8,31 @@ fn main() {
     let audio = Audio::new().unwrap();
     audio.init_client().unwrap();
 
+    let sample_rate = audio.sample_rate.borrow().unwrap();
     let audio_sample = AudioPacket::reader("Sample.wav");
+    let audio_input = AudioPacket::buffer(sample_rate * TEST_SECONDS);
 
-    let timetick = &audio.timetick;
-    let play_sample_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
-        let time = *timetick.read().unwrap() as f32;
-        let buffer = ports.playback.as_mut_slice(&ps);
-        for (index, sample) in buffer.iter_mut().enumerate() {
-            let current_sample = (index as f32 + time) as usize;
-            *sample = match audio_sample.read_sample(current_sample) {
-                Some(sample) => sample,
-                None => break,
-            };
-        }
-    };
+    let capture_callback = AudioCallback::capture(audio_input.clone());
+    let playback_sample = AudioCallback::playback(audio_sample, &audio.timetick);
 
     println!("Beginning playback...");
-    audio.register(Box::new(play_sample_callback));
+    audio.register(capture_callback);
+    audio.register(playback_sample);
     audio.activate();
 
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
 
     println!("Restarting and cleaning up...");
     audio.deactivate(AudioDeactivateFlags::CleanRestart);
+
+    let playback_buffer = AudioCallback::playback(audio_input, &audio.timetick);
+
+    println!("Beginning playback...");
+    audio.register(playback_buffer);
+    audio.activate();
+
+    std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
+
+    println!("Stopping playback...");
+    audio.deactivate(AudioDeactivateFlags::Deactivate);
 }

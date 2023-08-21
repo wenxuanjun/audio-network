@@ -9,7 +9,7 @@ pub type Callback = Box<dyn Fn(&mut AudioPorts, &ProcessScope) + Send + Sync>;
 type ClientCallback = impl Fn(&Client, &ProcessScope) -> Control + Send;
 type AsyncClientCallback = AsyncClient<(), ClosureProcessHandler<ClientCallback>>;
 
-const CLIENT_NAME: &str = "AcousticLink";
+const CLIENT_NAME: &str = "AcousticNetwork";
 
 pub struct Audio {
     client: RefCell<Option<Client>>,

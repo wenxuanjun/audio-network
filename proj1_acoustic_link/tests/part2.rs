@@ -1,6 +1,6 @@
 use jack::ProcessScope;
-use proj1_acoustic_link::audio::{Audio, AudioPorts};
 use proj1_acoustic_link::audio::AudioDeactivateFlags;
+use proj1_acoustic_link::audio::{Audio, AudioPorts};
 
 #[test]
 fn part2_ck1() {
@@ -16,7 +16,7 @@ fn part2_ck1() {
         for (index, sample) in buffer.iter_mut().enumerate() {
             let current_time = (index as f32 + time) / sample_rate as f32;
             let multiplier = 2.0 * std::f32::consts::PI * current_time;
-            *sample = (multiplier * 1000.0).sin() + (multiplier * 10000.0).sin();
+            *sample = ((multiplier * 1000.0).sin() + (multiplier * 10000.0).sin()) / 2.0;
         }
     };
 
