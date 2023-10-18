@@ -6,4 +6,3 @@ resolver = "2"
 lto = true
 opt-level = 3
 strip = "symbols"
-codegen-units = 1

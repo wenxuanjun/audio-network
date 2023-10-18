@@ -1,8 +1,8 @@
-pub mod audio;
+mod audio;
 pub use audio::{Audio, AudioPorts, AudioDeactivateFlag};
 
-pub mod callbacks;
-pub use callbacks::AudioCallback;
+mod callbacks;
+pub use callbacks::CreateCallback;
 
 mod packet;
 pub use packet::AudioPacket;

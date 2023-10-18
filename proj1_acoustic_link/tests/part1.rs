@@ -1,17 +1,17 @@
 use std::time::Duration;
-use proj1_acoustic_link::audio::{Audio, AudioCallback};
+use proj1_acoustic_link::audio::{Audio, CreateCallback};
 use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlag};
 
-const TEST_SECONDS: usize = 10;
+const TEST_SECONDS: usize = 5;
 
 #[test]
 fn part1_ck1() {
     let audio = Audio::new().unwrap();
 
     let sample_rate = audio.sample_rate.borrow().unwrap();
-    let audio_input = AudioPacket::buffer(sample_rate * TEST_SECONDS);
+    let audio_input = AudioPacket::create_buffer(sample_rate * TEST_SECONDS);
 
-    let capture_callback = AudioCallback::capture(audio_input.clone());
+    let capture_callback = CreateCallback::capture(audio_input.clone());
 
     audio.register(Box::new(capture_callback));
 
@@ -23,7 +23,7 @@ fn part1_ck1() {
     println!("Restarting and cleaning up...");
     audio.deactivate(AudioDeactivateFlag::CleanRestart);
 
-    let playback_callback = AudioCallback::playback(audio_input, &audio.timetick);
+    let playback_callback = CreateCallback::playback(audio_input, &audio.timetick);
 
     println!("Beginning playback...");
     audio.register(Box::new(playback_callback));
@@ -40,15 +40,15 @@ fn part1_ck2() {
     let audio = Audio::new().unwrap();
 
     let sample_rate = audio.sample_rate.borrow().unwrap();
-    let audio_sample = AudioPacket::reader("Sample.wav");
-    let audio_input = AudioPacket::buffer(sample_rate * TEST_SECONDS);
+    let audio_sample = AudioPacket::create_reader("Sample.wav");
+    let audio_input = AudioPacket::create_buffer(sample_rate * TEST_SECONDS);
 
-    let capture_callback = AudioCallback::capture(audio_input.clone());
-    let playback_sample = AudioCallback::playback(audio_sample, &audio.timetick);
+    let capture_callback = CreateCallback::capture(audio_input.clone());
+    let playback_sample_callback = CreateCallback::playback(audio_sample, &audio.timetick);
 
     println!("Beginning playback...");
     audio.register(capture_callback);
-    audio.register(playback_sample);
+    audio.register(playback_sample_callback);
     audio.activate();
 
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));
@@ -56,10 +56,10 @@ fn part1_ck2() {
     println!("Restarting and cleaning up...");
     audio.deactivate(AudioDeactivateFlag::CleanRestart);
 
-    let playback_buffer = AudioCallback::playback(audio_input, &audio.timetick);
+    let playback_buffer_callback = CreateCallback::playback(audio_input, &audio.timetick);
 
     println!("Beginning playback...");
-    audio.register(playback_buffer);
+    audio.register(playback_buffer_callback);
     audio.activate();
 
     std::thread::sleep(Duration::from_secs(TEST_SECONDS as u64));

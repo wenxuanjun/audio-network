@@ -5,7 +5,7 @@ use jack::{AsyncClient, ClientOptions, Error, LatencyType};
 use jack::{AudioIn, AudioOut, Client, Port};
 use jack::{ClosureProcessHandler, Control, ProcessScope};
 
-pub type Callback = Box<dyn Fn(&mut AudioPorts, &ProcessScope) + Send + Sync>;
+pub(crate) type AudioCallback = Box<dyn Fn(&mut AudioPorts, &ProcessScope) + Send + Sync>;
 type ClientCallback = impl Fn(&Client, &ProcessScope) -> Control + Send;
 type AsyncClientCallback = AsyncClient<(), ClosureProcessHandler<ClientCallback>>;
 
@@ -17,7 +17,7 @@ pub struct Audio {
     pub timetick: RwLock<u64>,
     active_client: RefCell<Option<AsyncClientCallback>>,
     pub sample_rate: RefCell<Option<usize>>,
-    callbacks: RwLock<Vec<Callback>>,
+    callbacks: RwLock<Vec<AudioCallback>>,
 }
 
 pub struct AudioPorts {
@@ -56,6 +56,7 @@ impl Audio {
 
         let in_port = client.register_port("input", AudioIn::default())?;
         let out_port = client.register_port("output", AudioOut::default())?;
+
         client.connect_ports(&capture_port, &in_port)?;
         client.connect_ports(&out_port, &playback_port)?;
 
@@ -74,7 +75,7 @@ impl Audio {
         Ok(())
     }
 
-    pub fn register(&'static self, callback: Callback) {
+    pub fn register(&'static self, callback: AudioCallback) {
         self.callbacks.write().unwrap().push(callback);
     }
 
@@ -123,7 +124,8 @@ impl Audio {
     pub fn get_latency(&self) -> f64 {
         let min_latency = {
             let ports = self.ports.read().unwrap();
-            ports.as_ref().unwrap().capture.get_latency_range(LatencyType::Capture).0
+            let capture = &ports.as_ref().unwrap().capture;
+            capture.get_latency_range(LatencyType::Capture).0
         };
         let sample_rate = self.sample_rate.borrow().unwrap();
         min_latency as f64 / sample_rate as f64 * 1000.0

@@ -1,22 +1,19 @@
 use std::sync::RwLock;
 
 use jack::ProcessScope;
-use super::{audio::Callback, AudioPorts, AudioPacket};
+use super::{audio::AudioCallback, AudioPorts, AudioPacket};
 
-pub struct AudioCallback;
+pub struct CreateCallback;
 
-impl AudioCallback {
-    pub fn capture(output: AudioPacket) -> Callback {
+impl CreateCallback {
+    pub fn capture(output: AudioPacket) -> AudioCallback {
         let capture_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
-            for sample in ports.capture.as_slice(&ps).iter() {
-                output.write_sample(*sample);
-            }
+            output.write_chunk(ports.capture.as_slice(&ps));
         };
-
         Box::new(capture_callback)
     }
 
-    pub fn playback(input: AudioPacket, timetick: &'static RwLock<u64>) -> Callback {
+    pub fn playback(input: AudioPacket, timetick: &'static RwLock<u64>) -> AudioCallback {
         let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
             let time = *timetick.read().unwrap() as f32;
             let buffer = ports.playback.as_mut_slice(&ps);
@@ -28,7 +25,6 @@ impl AudioCallback {
                 };
             }
         };
-
         Box::new(playback_callback)
     }
 }
