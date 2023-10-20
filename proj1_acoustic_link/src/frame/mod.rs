@@ -1,17 +1,17 @@
+use slice_deque::SliceDeque;
+use crate::modem::{Modem, PSK};
+
 mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
-use crate::modem::{Modem, PSK};
-use slice_deque::SliceDeque;
-
 pub const PAYLOAD_LENGTH: usize = 100;
-const DETECT_THRETSHOLD_MIN: f32 = 10.0;
-const DETECT_THRETSHOLD_RATIO: f32 = 4.5;
+const DETECT_THRETSHOLD_MIN: f32 = 20.0;
+const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
 
 #[derive(PartialEq)]
 pub enum FrameDetectorState {
     Payload,
-    MayBePayload,
+    MaybePayload,
     Waiting,
 }
 
@@ -50,7 +50,7 @@ impl FrameDetector {
         }
         self.detect_buffer.push_back(sample);
 
-        if self.current_state == FrameDetectorState::MayBePayload {
+        if self.current_state == FrameDetectorState::MaybePayload {
             if self.get_correlation() > *self.correlation_buffer.back().unwrap() {
                 self.current_state = FrameDetectorState::Waiting;
             } else {
@@ -77,7 +77,7 @@ impl FrameDetector {
                 if correlation > DETECT_THRETSHOLD_MIN
                     && correlation > average_correlation * DETECT_THRETSHOLD_RATIO
                 {
-                    self.current_state = FrameDetectorState::MayBePayload;
+                    self.current_state = FrameDetectorState::MaybePayload;
                     self.payload_buffer.clear();
                 }
 
@@ -93,7 +93,7 @@ impl FrameDetector {
 
                 None
             }
-            FrameDetectorState::MayBePayload => unreachable!(),
+            FrameDetectorState::MaybePayload => unreachable!(),
         }
     }
 }

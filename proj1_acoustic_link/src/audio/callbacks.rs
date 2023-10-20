@@ -21,7 +21,7 @@ impl CreateCallback {
                 let current_sample = (index as f32 + time) as usize;
                 *sample = match input.read_sample(current_sample) {
                     Some(sample) => sample,
-                    None => break,
+                    None => 0.0,
                 };
             }
         };

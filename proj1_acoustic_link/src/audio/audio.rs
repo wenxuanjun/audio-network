@@ -5,11 +5,11 @@ use jack::{AsyncClient, ClientOptions, Error, LatencyType};
 use jack::{AudioIn, AudioOut, Client, Port};
 use jack::{ClosureProcessHandler, Control, ProcessScope};
 
-pub(crate) type AudioCallback = Box<dyn Fn(&mut AudioPorts, &ProcessScope) + Send + Sync>;
+pub(crate) type AudioCallback = Box<dyn FnMut(&mut AudioPorts, &ProcessScope) + Send + Sync>;
 type ClientCallback = impl Fn(&Client, &ProcessScope) -> Control + Send;
 type AsyncClientCallback = AsyncClient<(), ClosureProcessHandler<ClientCallback>>;
 
-const CLIENT_NAME: &str = "AcousticNetwork";
+const CLIENT_NAME_PREFIX: &str = "AcousticNetwork";
 
 pub struct Audio {
     client: RefCell<Option<Client>>,
@@ -48,8 +48,11 @@ impl Audio {
     }
 
     pub fn init_client(&self) -> Result<(), Error> {
+        let random_node_id = rand::random::<u8>();
+        let client_name = format!("{}-{}", CLIENT_NAME_PREFIX, random_node_id);
+
         let (client, _status) =
-            Client::new(CLIENT_NAME, ClientOptions::NO_START_SERVER)?;
+            Client::new(&client_name, ClientOptions::NO_START_SERVER)?;
     
         let capture_port = client.port_by_name("system:capture_1").unwrap();
         let playback_port = client.port_by_name("system:playback_1").unwrap();
@@ -88,8 +91,10 @@ impl Audio {
         let process_callback = move |_: &Client, ps: &ProcessScope| -> Control {
             let mut ports = ports.write().unwrap();
 
-            let callbacks = callbacks.read().unwrap();
-            callbacks.iter().for_each(|callback| callback(&mut ports.as_mut().unwrap(), ps));
+            let mut callbacks = callbacks.write().unwrap();
+            for callback in callbacks.iter_mut() {
+                callback(&mut ports.as_mut().unwrap(), ps);
+            }
 
             *timetick.write().unwrap() += buffer_size as u64;
             Control::Continue
