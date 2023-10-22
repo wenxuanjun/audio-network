@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
 pub const PREAMBLE_LENGTH: usize = 480;
-const PREAMBLE_FREQ_MIN: f32 = 3600.0;
-const PREAMBLE_FREQ_MAX: f32 = 5200.0;
+const PREAMBLE_FREQ_MIN: f32 = 2450.0;
+const PREAMBLE_FREQ_MAX: f32 = 3550.0;
 
 pub struct PreambleSequence;
 

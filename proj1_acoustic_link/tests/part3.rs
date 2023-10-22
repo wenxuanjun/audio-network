@@ -2,11 +2,11 @@ use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
 use proj1_acoustic_link::frame::PreambleSequence;
-use proj1_acoustic_link::modem::{Modem, PSK};
+use proj1_acoustic_link::modem::{Modem, PSK, BitByteConverter};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
-const TEST_SEQUENCE_LENGTH: usize = 2000;
+const TEST_SEQUENCE_BYTES: usize = 1250;
 
 const TEST_INPUT_FILE: &str = "INPUT.txt";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
@@ -16,7 +16,7 @@ fn part3_ck1_generate() {
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_INPUT_FILE);
 
-    let test_data = (0..TEST_SEQUENCE_LENGTH)
+    let test_data = (0..TEST_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>() % 2)
         .collect::<Vec<u8>>()
         .iter()
@@ -49,7 +49,7 @@ fn part3_ck1_sender() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = (TEST_SEQUENCE_LENGTH / PSK::BIT_RATE) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -94,8 +94,8 @@ fn part3_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
     let sample_rate = audio.sample_rate.borrow().unwrap();
 
-    let test_data: Vec<_> = (0..TEST_SEQUENCE_LENGTH)
-        .map(|_| rand::random::<u8>() % 2)
+    let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
+        .map(|_| rand::random::<u8>())
         .collect();
 
     Sender::register(&audio, &test_data);
@@ -104,35 +104,38 @@ fn part3_ck1_selfcheck() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = (TEST_SEQUENCE_LENGTH / PSK::BIT_RATE) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    let received_output = received_output.lock().unwrap();
-    let recorded_data = &received_output.recorded_data;
-    let demodulated_data = &received_output.demodulated_data;
+    let mut received_output = received_output.lock().unwrap();
+
+    let demodulated_data = &mut received_output.demodulated_data;
+    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
     println!("Demodulated data length: {:?}", demodulated_data.len());
 
-    let preamble = PreambleSequence::new(sample_rate);
-    let correlation_test = correlate(recorded_data, &preamble);
-    plot_file("correlation.py", &correlation_test);
-
     count_error(&test_data, demodulated_data);
+
+    let preamble = PreambleSequence::new(sample_rate);
+    let correlation_test = correlate(&received_output.recorded_data, &preamble);
+    plot_process_result("correlation.py", &correlation_test);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
-    let error_count = origin
+    let error_index: Vec<_> = BitByteConverter::bytes_to_bits(origin)
         .iter()
-        .zip(result.iter())
-        .filter(|(a, b)| a != b)
-        .count();
+        .zip(BitByteConverter::bytes_to_bits(result).iter())
+        .enumerate()
+        .filter(|(_, (a, b))| a != b)
+        .map(|(i, _)| i)
+        .collect();
 
-    println!("Error count: {:?}", error_count);
+    println!("Error count: {:?}, Error: {:?}", error_index.len(), error_index);
 }
 
-fn plot_file(file_name: &str, data: &[f32]) {
+fn plot_process_result(file_name: &str, data: &[f32]) {
     use std::{fs::File, io::Write};
 
     let mut file = File::create(file_name).unwrap();

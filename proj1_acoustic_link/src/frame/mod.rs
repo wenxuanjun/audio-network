@@ -4,8 +4,8 @@ use crate::modem::{Modem, PSK};
 mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
-pub const PAYLOAD_LENGTH: usize = 100;
-const DETECT_THRETSHOLD_MIN: f32 = 20.0;
+pub const PAYLOAD_BYTES: usize = 16;
+const DETECT_THRETSHOLD_MIN: f32 = 10.0;
 const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
 
 #[derive(PartialEq)]
@@ -25,7 +25,10 @@ pub struct FrameDetector {
 
 impl FrameDetector {
     pub fn new(sample_rate: usize) -> Self {
-        let payload_capacity = sample_rate / PSK::BIT_RATE * PAYLOAD_LENGTH;
+        let payload_capacity = {
+            let bits = PAYLOAD_BYTES * 8;
+            sample_rate / PSK::BIT_RATE * bits
+        };
 
         Self {
             preamble: PreambleSequence::new(sample_rate),

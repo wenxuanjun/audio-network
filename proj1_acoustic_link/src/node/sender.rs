@@ -1,6 +1,6 @@
 use super::WARMUP_SEQUENCE;
 use crate::audio::{Audio, AudioPacket, CreateCallback};
-use crate::frame::{PreambleSequence, PAYLOAD_LENGTH};
+use crate::frame::{PreambleSequence, PAYLOAD_BYTES};
 use crate::modem::Modem;
 
 pub struct Sender;
@@ -15,10 +15,12 @@ impl Sender {
 
         sample_buffer.write_chunk(&psk.modulate(&WARMUP_SEQUENCE));
 
-        data.chunks(PAYLOAD_LENGTH).for_each(|frame| {
+        data.chunks(PAYLOAD_BYTES).for_each(|frame| {
             sample_buffer.write_chunk(&preamble);
             sample_buffer.write_chunk(&psk.modulate(&frame.to_vec()));
         });
+
+        println!("sample_buffer length: {:?}", sample_buffer.read_all().len());
 
         let play_callback = CreateCallback::playback(sample_buffer, &audio.timetick);
         audio.register(play_callback);

@@ -1,25 +1,27 @@
-use super::Modem;
+use super::{BitByteConverter, Modem};
+
 pub struct PSK {
     sample_rate: usize,
     standard_frame: StandardFrame,
 }
 
 struct StandardFrame {
-    zero: Vec<f32>,
-    one: Vec<f32>,
+    zero_frame: Vec<f32>,
+    one_frame: Vec<f32>,
 }
 
 impl Modem for PSK {
     const BIT_RATE: usize = 1000;
     const CARRIER_FREQUENCY: f32 = 2400.0;
 
-    fn modulate(&self, bits: &Vec<u8>) -> Vec<f32> {
-        bits.into_iter()
+    fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32> {
+        BitByteConverter::bytes_to_bits(bytes)
+            .into_iter()
             .map(|bit| {
                 let standard = &self.standard_frame;
                 match bit {
-                    0 => standard.zero.clone(),
-                    1 => standard.one.clone(),
+                    0 => standard.zero_frame.clone(),
+                    1 => standard.one_frame.clone(),
                     _ => panic!("Only 0 or 1 is valid bit!"),
                 }
             })
@@ -28,36 +30,39 @@ impl Modem for PSK {
     }
 
     fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8> {
-        let vector_product = |seq_a: &[f32], seq_b: &[f32]| -> f32 {
-            seq_a.iter().zip(seq_b.iter()).map(|(a, b)| a * b).sum()
-        };
-
-        samples
+        let bits = samples
             .chunks((self.sample_rate / PSK::BIT_RATE) as usize)
             .map(|frame| {
-                let similarity = vector_product(frame, &self.standard_frame.zero);
+                let similarity = frame
+                    .iter()
+                    .zip(self.standard_frame.zero_frame.iter())
+                    .map(|(a, b)| a * b)
+                    .sum::<f32>();
                 (similarity < 0.0) as u8
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        BitByteConverter::bits_to_bytes(&bits)
     }
 }
 
 impl PSK {
     pub fn new(sample_rate: usize) -> Self {
-        let standard_frame = {
-            let sine_wave = |index| {
-                let multiplier = {
-                    let current_ratio = index as f32 / sample_rate as f32;
-                    2.0 * std::f32::consts::PI * current_ratio
-                };
-                (multiplier * PSK::CARRIER_FREQUENCY).sin()
-            };
+        let sine_wave = |index| {
+            (index as f32 / sample_rate as f32
+                * 2.0
+                * std::f32::consts::PI
+                * PSK::CARRIER_FREQUENCY)
+                .sin()
+        };
 
-            let frame_length = sample_rate / PSK::BIT_RATE;
-            let zero_frame: Vec<f32> = (0..frame_length).map(sine_wave).collect();
-            let one_frame: Vec<_> = zero_frame.iter().map(|item| -item).collect();
+        let frame_length = sample_rate / PSK::BIT_RATE;
+        let zero_frame: Vec<_> = (0..frame_length).map(sine_wave).collect();
+        let one_frame: Vec<_> = zero_frame.iter().map(|item| -item).collect();
 
-            StandardFrame { zero: zero_frame, one: one_frame }
+        let standard_frame = StandardFrame {
+            zero_frame,
+            one_frame,
         };
 
         Self {
