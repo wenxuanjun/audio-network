@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
 pub const PREAMBLE_LENGTH: usize = 480;
-const PREAMBLE_FREQ_MIN: f32 = 2450.0;
-const PREAMBLE_FREQ_MAX: f32 = 3550.0;
+const PREAMBLE_FREQ_MIN: f32 = 900.0;
+const PREAMBLE_FREQ_MAX: f32 = 3000.0;
 
 pub struct PreambleSequence;
 
@@ -14,7 +14,7 @@ impl PreambleSequence {
         let get_frequency = |index: usize| {
             if index < PREAMBLE_CENTER as usize {
                 let ratio = index as f32 / PREAMBLE_CENTER;
-                PREAMBLE_FREQ_MIN + FREQUENCY_DIFF* ratio
+                PREAMBLE_FREQ_MIN + FREQUENCY_DIFF * ratio
             } else {
                 let ratio = (index as f32 - PREAMBLE_CENTER) / PREAMBLE_CENTER;
                 PREAMBLE_FREQ_MAX - FREQUENCY_DIFF * ratio

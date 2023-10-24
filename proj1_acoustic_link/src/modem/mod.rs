@@ -40,13 +40,14 @@ mod tests {
 
     #[test]
     fn test_bit_byte_converter() {
-        let bytes = vec![0x01, 0x02, 0x03, 0x04];
-        let bits = vec![
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-            0, 0, 0,
-        ];
+        let bytes = vec![0x01, 0x02];
+        let bits = vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+
+        let short_bits = vec![1, 0, 1, 1];
+        let short_bytes = vec![0x0D];
 
         assert_eq!(BitByteConverter::bytes_to_bits(&bytes), bits);
         assert_eq!(BitByteConverter::bits_to_bytes(&bits), bytes);
+        assert_eq!(BitByteConverter::bits_to_bytes(&short_bits), short_bytes);
     }
 }

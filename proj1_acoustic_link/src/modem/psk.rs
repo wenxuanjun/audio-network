@@ -1,13 +1,13 @@
 use super::{BitByteConverter, Modem};
 
+const BIT_PER_SAMPLE: usize = 1;
+const BAUD_RATE: usize = PSK::BIT_RATE / BIT_PER_SAMPLE;
+const FRAME_VARIANCE: usize = 2usize.pow(BIT_PER_SAMPLE as u32);
+
 pub struct PSK {
     sample_rate: usize,
-    standard_frame: StandardFrame,
-}
-
-struct StandardFrame {
-    zero_frame: Vec<f32>,
-    one_frame: Vec<f32>,
+    standard_frame: [Vec<f32>; FRAME_VARIANCE],
+    gray_code: [Vec<u8>; FRAME_VARIANCE],
 }
 
 impl Modem for PSK {
@@ -16,30 +16,53 @@ impl Modem for PSK {
 
     fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32> {
         BitByteConverter::bytes_to_bits(bytes)
-            .into_iter()
-            .map(|bit| {
-                let standard = &self.standard_frame;
-                match bit {
-                    0 => standard.zero_frame.clone(),
-                    1 => standard.one_frame.clone(),
-                    _ => panic!("Only 0 or 1 is valid bit!"),
-                }
+            .chunks(BIT_PER_SAMPLE)
+            .map(|chunk| {
+                let index = self
+                    .gray_code
+                    .iter()
+                    .enumerate()
+                    .find(|(_, code)| code == &chunk)
+                    .unwrap()
+                    .0;
+
+                self.standard_frame[index as usize].clone()
             })
             .flatten()
             .collect()
     }
 
     fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8> {
+        let frame_length = self.sample_rate / BAUD_RATE;
+
         let bits = samples
-            .chunks((self.sample_rate / PSK::BIT_RATE) as usize)
+            .chunks(frame_length)
             .map(|frame| {
-                let similarity = frame
+                let similarities = self
+                    .standard_frame
                     .iter()
-                    .zip(self.standard_frame.zero_frame.iter())
-                    .map(|(a, b)| a * b)
-                    .sum::<f32>();
-                (similarity < 0.0) as u8
+                    .map(|standard| {
+                        frame
+                            .iter()
+                            .zip(standard.iter())
+                            .map(|(a, b)| a * b)
+                            .sum::<f32>()
+                    })
+                    .collect::<Vec<_>>();
+
+                let max_index = similarities
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .unwrap()
+                    .0;
+
+                self.gray_code[max_index as usize]
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect::<Vec<_>>();
 
         BitByteConverter::bits_to_bytes(&bits)
@@ -48,26 +71,57 @@ impl Modem for PSK {
 
 impl PSK {
     pub fn new(sample_rate: usize) -> Self {
-        let sine_wave = |index| {
-            (index as f32 / sample_rate as f32
-                * 2.0
-                * std::f32::consts::PI
-                * PSK::CARRIER_FREQUENCY)
-                .sin()
+        let sine_frame = |length, phase| {
+            (0..length)
+                .map(|index| {
+                    (index as f32 / sample_rate as f32
+                        * 2.0
+                        * std::f32::consts::PI
+                        * PSK::CARRIER_FREQUENCY
+                        + phase as f32)
+                        .sin()
+                })
+                .collect::<Vec<_>>()
         };
 
-        let frame_length = sample_rate / PSK::BIT_RATE;
-        let zero_frame: Vec<_> = (0..frame_length).map(sine_wave).collect();
-        let one_frame: Vec<_> = zero_frame.iter().map(|item| -item).collect();
+        let start_phase = if BIT_PER_SAMPLE == 1 {
+            0.0
+        } else {
+            std::f32::consts::PI / FRAME_VARIANCE as f32
+        };
 
-        let standard_frame = StandardFrame {
-            zero_frame,
-            one_frame,
+        let standard_frame = (0..2usize.pow(BIT_PER_SAMPLE as u32))
+            .map(|index| {
+                let round = std::f32::consts::PI * 2.0;
+                sine_frame(
+                    sample_rate / BAUD_RATE,
+                    start_phase + index as f32 * round / FRAME_VARIANCE as f32,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let gray_code = |bits| {
+            let mut gray_code = vec![vec![0], vec![1]];
+
+            for _ in 0..bits - 1 {
+                let mut reflected = gray_code.clone();
+                reflected.reverse();
+                for code in &mut reflected {
+                    code.insert(0, 1);
+                }
+                for code in &mut gray_code {
+                    code.insert(0, 0);
+                }
+                gray_code.extend(reflected);
+            }
+
+            gray_code
         };
 
         Self {
             sample_rate,
-            standard_frame,
+            standard_frame: standard_frame.try_into().unwrap(),
+            gray_code: gray_code(BIT_PER_SAMPLE).try_into().unwrap(),
         }
     }
 }
@@ -77,14 +131,14 @@ mod tests {
     use super::*;
 
     const SAMPLE_RATE: usize = 48000;
-    const TEST_SEQUENCE_LENGTH: usize = 100;
+    const TEST_SEQUENCE_BYTES: usize = 100;
 
     #[test]
     fn test_psk() {
         let psk = PSK::new(SAMPLE_RATE);
 
-        let data = (0..TEST_SEQUENCE_LENGTH)
-            .map(|_| rand::random::<u8>() % 2)
+        let data = (0..TEST_SEQUENCE_BYTES)
+            .map(|_| rand::random::<u8>())
             .collect();
 
         let mut modulated = psk.modulate(&data);

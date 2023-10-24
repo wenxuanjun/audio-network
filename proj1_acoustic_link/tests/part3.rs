@@ -3,7 +3,7 @@ use std::path::Path;
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
 use proj1_acoustic_link::frame::PreambleSequence;
 use proj1_acoustic_link::modem::{Modem, PSK, BitByteConverter};
-use proj1_acoustic_link::node::{Receiver, Sender};
+use proj1_acoustic_link::node::{Receiver, Sender, ErrorCorrector};
 
 const TEST_EXTRA_WAITING: usize = 1;
 const TEST_SEQUENCE_BYTES: usize = 1250;
@@ -121,6 +121,40 @@ fn part3_ck1_selfcheck() {
     let preamble = PreambleSequence::new(sample_rate);
     let correlation_test = correlate(&received_output.recorded_data, &preamble);
     plot_process_result("correlation.py", &correlation_test);
+}
+
+#[test]
+fn part4_ck1_selfcheck() {
+    let audio = Audio::new().unwrap();
+
+    let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
+        .map(|_| rand::random::<u8>())
+        .collect();
+
+    let encoded_data = ErrorCorrector::encode(&test_data);
+
+    Sender::register(&audio, &encoded_data);
+    let received_output = Receiver::register(&audio);
+
+    println!("Activating audio...");
+    audio.activate();
+
+    let duration = ((encoded_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
+    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+
+    println!("Deactivating audio...");
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
+
+    let received_output = received_output.lock().unwrap();
+    let demodulated_data = &received_output.demodulated_data;
+    println!("Demodulated data length: {:?}", demodulated_data.len());
+    count_error(&encoded_data, demodulated_data);
+
+    let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
+    decoded_data.truncate(TEST_SEQUENCE_BYTES);
+
+    println!("Decoded data length: {:?}", decoded_data.len());
+    count_error(&test_data, &decoded_data);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {

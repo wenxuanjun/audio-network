@@ -5,7 +5,7 @@ mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
 pub const PAYLOAD_BYTES: usize = 16;
-const DETECT_THRETSHOLD_MIN: f32 = 10.0;
+const DETECT_THRETSHOLD_MIN: f32 = 80.0;
 const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
 
 #[derive(PartialEq)]
