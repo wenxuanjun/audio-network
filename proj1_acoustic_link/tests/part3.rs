@@ -2,11 +2,11 @@ use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
 use proj1_acoustic_link::frame::PreambleSequence;
-use proj1_acoustic_link::modem::{Modem, PSK, BitByteConverter};
-use proj1_acoustic_link::node::{Receiver, Sender, ErrorCorrector};
+use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk};
+use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
-const TEST_SEQUENCE_BYTES: usize = 1250;
+const TEST_SEQUENCE_BYTES: usize = 250;
 
 const TEST_INPUT_FILE: &str = "INPUT.txt";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
@@ -40,7 +40,7 @@ fn part3_ck1_sender() {
         .map(|c| c.to_digit(10).unwrap() as u8)
         .collect::<Vec<_>>();
 
-    Sender::register(&audio, &test_data);
+    Sender::<Psk>::register(&audio, &test_data);
 
     println!("Press enter to start sending data...");
     let mut input = String::new();
@@ -49,7 +49,7 @@ fn part3_ck1_sender() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -65,7 +65,7 @@ fn part3_ck1_receiver() {
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_OUTPUT_FILE);
 
-    let received_output = Receiver::register(&audio);
+    let received_output = Receiver::<Psk>::register(&audio);
 
     println!("Activating audio...");
     audio.activate();
@@ -79,7 +79,7 @@ fn part3_ck1_receiver() {
 
     let received_output = received_output.lock().unwrap();
     let demodulated_data = &received_output.demodulated_data;
-    println!("Demodulated data length: {:?}", demodulated_data.len());
+    println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
     let demodulated_data = demodulated_data
         .iter()
@@ -98,13 +98,13 @@ fn part3_ck1_selfcheck() {
         .map(|_| rand::random::<u8>())
         .collect();
 
-    Sender::register(&audio, &test_data);
-    let received_output = Receiver::register(&audio);
+    Sender::<Psk>::register(&audio, &test_data);
+    let received_output = Receiver::<Psk>::register(&audio);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -114,7 +114,7 @@ fn part3_ck1_selfcheck() {
 
     let demodulated_data = &mut received_output.demodulated_data;
     demodulated_data.truncate(TEST_SEQUENCE_BYTES);
-    println!("Demodulated data length: {:?}", demodulated_data.len());
+    println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
     count_error(&test_data, demodulated_data);
 
@@ -133,13 +133,13 @@ fn part4_ck1_selfcheck() {
 
     let encoded_data = ErrorCorrector::encode(&test_data);
 
-    Sender::register(&audio, &encoded_data);
-    let received_output = Receiver::register(&audio);
+    Sender::<Psk>::register(&audio, &encoded_data);
+    let received_output = Receiver::<Psk>::register(&audio);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((encoded_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((encoded_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -147,14 +147,70 @@ fn part4_ck1_selfcheck() {
 
     let received_output = received_output.lock().unwrap();
     let demodulated_data = &received_output.demodulated_data;
-    println!("Demodulated data length: {:?}", demodulated_data.len());
+    println!("Demodulated data bytes: {:?}", demodulated_data.len());
     count_error(&encoded_data, demodulated_data);
 
     let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
-    decoded_data.truncate(TEST_SEQUENCE_BYTES);
-
     println!("Decoded data length: {:?}", decoded_data.len());
+    
+    decoded_data.truncate(TEST_SEQUENCE_BYTES);
     count_error(&test_data, &decoded_data);
+}
+
+#[test]
+fn part5_ck1_selfcheck() {
+    let audio = Audio::new().unwrap();
+    let sample_rate = audio.sample_rate.borrow().unwrap();
+    
+    let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
+        .map(|_| rand::random::<u8>())
+        .collect();
+
+    let mut encoded_data = ErrorCorrector::encode(&test_data);
+
+    println!("Encoded data length: {:?}", encoded_data.len());
+
+    let origin_encoded_length = encoded_data.len();
+
+    let actual_sequence_bytes = {
+        let unit_payload_bytes = Ofdm::PREFERED_PAYLOAD_BYTES;
+        let extra_bytes = unit_payload_bytes - origin_encoded_length % unit_payload_bytes;
+        origin_encoded_length + extra_bytes
+    };
+
+    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
+
+    encoded_data.resize(actual_sequence_bytes, 0);
+
+    Sender::<Ofdm>::register(&audio, &encoded_data);
+    let received_output = Receiver::<Ofdm>::register(&audio);
+
+    println!("Activating audio...");
+    audio.activate();
+
+    let duration = ((encoded_data.len() * 8).div_ceil(1000)) + TEST_EXTRA_WAITING;
+    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+
+    println!("Deactivating audio...");
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
+
+    let mut received_output = received_output.lock().unwrap();
+
+    let demodulated_data = &mut received_output.demodulated_data;
+    println!("Demodulated data bytes: {:?}", demodulated_data.len());
+
+    count_error(&encoded_data, demodulated_data);
+
+    demodulated_data.truncate(origin_encoded_length);
+    let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
+    println!("Decoded data length: {:?}", decoded_data.len());
+
+    decoded_data.truncate(TEST_SEQUENCE_BYTES);
+    count_error(&test_data, &decoded_data);
+
+    let preamble = PreambleSequence::new(sample_rate);
+    let correlation_test = correlate(&received_output.recorded_data, &preamble);
+    plot_process_result("correlation.py", &correlation_test);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
@@ -163,10 +219,14 @@ fn count_error(origin: &[u8], result: &[u8]) {
         .zip(BitByteConverter::bytes_to_bits(result).iter())
         .enumerate()
         .filter(|(_, (a, b))| a != b)
-        .map(|(i, _)| i)
+        .map(|(index, _)| index)
         .collect();
 
-    println!("Error count: {:?}, Error: {:?}", error_index.len(), error_index);
+    println!(
+        "Error bits: {:?}, Error index: {:?}",
+        error_index.len(),
+        error_index
+    );
 }
 
 fn plot_process_result(file_name: &str, data: &[f32]) {

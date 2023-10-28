@@ -8,8 +8,7 @@ pub struct ErrorCorrector;
 impl ErrorCorrector {
     pub fn encode(data: &Vec<u8>) -> Vec<u8> {
         data.chunks(DATA_LENGTH)
-            .map(|chunk| Encoder::new(ECC_LENGTH).encode(&chunk).to_vec())
-            .flatten()
+            .flat_map(|chunk| Encoder::new(ECC_LENGTH).encode(&chunk).to_vec())
             .collect()
     }
 
@@ -20,14 +19,16 @@ impl ErrorCorrector {
 
             Decoder::new(ECC_LENGTH)
                 .correct(&mut chunk_mut, None)
-                .unwrap()
+                .unwrap_or_else(|_| {
+                    println!("Cannot correct, too many errors!");
+                    std::process::exit(1)
+                })
                 .data()
                 .to_vec()
         };
 
         data.chunks(DATA_LENGTH + ECC_LENGTH)
-            .map(decode)
-            .flatten()
+            .flat_map(decode)
             .collect()
     }
 }

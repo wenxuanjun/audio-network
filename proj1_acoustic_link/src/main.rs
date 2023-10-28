@@ -1,6 +1,6 @@
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{Modem, PSK};
-use proj1_acoustic_link::node::{Receiver, Sender, ErrorCorrector};
+use proj1_acoustic_link::modem::{Modem, Ofdm, Psk};
+use proj1_acoustic_link::node::{Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
 const TEST_SEQUENCE_BYTES: usize = 1250;
@@ -8,34 +8,34 @@ const TEST_SEQUENCE_BYTES: usize = 1250;
 fn main() {
     let audio = Audio::new().unwrap();
 
-    let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
-        .map(|_| rand::random::<u8>())
+    let actual_sequence_bytes = {
+        let unit_payload_bytes = Ofdm::PREFERED_PAYLOAD_BYTES;
+        let extra_bytes = unit_payload_bytes - TEST_SEQUENCE_BYTES % unit_payload_bytes;
+        TEST_SEQUENCE_BYTES + extra_bytes
+    };
+    let test_data: Vec<_> = (0..actual_sequence_bytes)
+        .map(|index| index as u8)
         .collect();
 
-    let encoded_data = ErrorCorrector::encode(&test_data);
-
-    Sender::register(&audio, &encoded_data);
-    let received_output = Receiver::register(&audio);
+    Sender::<Ofdm>::register(&audio, &test_data);
+    let received_output = Receiver::<Ofdm>::register(&audio);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((encoded_data.len() * 8).div_ceil(PSK::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    let received_output = received_output.lock().unwrap();
-    let demodulated_data = &received_output.demodulated_data;
-    println!("Demodulated data length: {:?}", demodulated_data.len());
-    count_error(&encoded_data, demodulated_data);
+    let mut received_output = received_output.lock().unwrap();
 
-    let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
-    decoded_data.truncate(TEST_SEQUENCE_BYTES);
+    let demodulated_data = &mut received_output.demodulated_data;
+    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
+    println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
-    println!("Decoded data length: {:?}", decoded_data.len());
-    count_error(&test_data, &decoded_data);
+    count_error(&test_data, demodulated_data);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
@@ -44,7 +44,7 @@ fn count_error(origin: &[u8], result: &[u8]) {
         .zip(result.iter())
         .enumerate()
         .filter(|(_, (a, b))| a != b)
-        .map(|(i, _)| i)
+        .map(|(index, _)| index)
         .collect();
 
     println!("Error count: {:?}, Error: {:?}", error_index.len(), error_index);

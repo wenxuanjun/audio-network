@@ -1,10 +1,13 @@
 mod psk;
-pub use psk::PSK;
+pub use psk::Psk;
+
+mod ofdm;
+pub use ofdm::Ofdm;
 
 pub trait Modem {
-    const BIT_RATE: usize;
-    const CARRIER_FREQUENCY: f32;
+    const PREFERED_PAYLOAD_BYTES: usize;
 
+    fn new(sample_rate: usize) -> Self;
     fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32>;
     fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8>;
 }
@@ -35,6 +38,7 @@ impl BitByteConverter {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

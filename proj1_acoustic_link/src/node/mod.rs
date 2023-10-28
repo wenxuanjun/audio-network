@@ -8,7 +8,7 @@ mod corrector;
 pub use corrector::ErrorCorrector;
 
 static WARMUP_SEQUENCE: Lazy<Vec<u8>> = Lazy::new(|| {
-    const WARMUP_SEQUENCE_BYTES: usize = 16;
+    const WARMUP_SEQUENCE_BYTES: usize = 18;
 
     (0..WARMUP_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>())
