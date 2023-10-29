@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use crate::audio::{Audio, AudioPorts};
+use crate::number::FP;
 use crate::frame::FrameDetector;
 use crate::modem::Modem;
 
@@ -42,7 +43,7 @@ where
             ports.capture.as_slice(&ps).iter().for_each(|&sample| {
                 received_output.recorded_data.push(sample);
 
-                if let Some(frame) = frame_detector.update(sample) {
+                if let Some(frame) = frame_detector.update(FP::from(sample)) {
                     let demodulated_frame = modem.demodulate(frame);
                     println!("Demodulated frame: {:?}", demodulated_frame);
                     received_output.demodulated_data.extend(demodulated_frame);

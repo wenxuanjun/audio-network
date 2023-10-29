@@ -3,7 +3,7 @@ use proj1_acoustic_link::modem::{Modem, Ofdm, Psk};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
-const TEST_SEQUENCE_BYTES: usize = 1250;
+const TEST_SEQUENCE_BYTES: usize = 250;
 
 fn main() {
     let audio = Audio::new().unwrap();
@@ -13,8 +13,9 @@ fn main() {
         let extra_bytes = unit_payload_bytes - TEST_SEQUENCE_BYTES % unit_payload_bytes;
         TEST_SEQUENCE_BYTES + extra_bytes
     };
+
     let test_data: Vec<_> = (0..actual_sequence_bytes)
-        .map(|index| index as u8)
+        .map(|_| rand::random::<u8>())
         .collect();
 
     Sender::<Ofdm>::register(&audio, &test_data);
@@ -47,5 +48,9 @@ fn count_error(origin: &[u8], result: &[u8]) {
         .map(|(index, _)| index)
         .collect();
 
-    println!("Error count: {:?}, Error: {:?}", error_index.len(), error_index);
+    println!(
+        "Error count: {:?}, Error: {:?}",
+        error_index.len(),
+        error_index
+    );
 }

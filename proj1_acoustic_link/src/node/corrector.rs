@@ -1,6 +1,6 @@
 use reed_solomon::{Decoder, Encoder};
 
-const ECC_LENGTH: usize = 64;
+const ECC_LENGTH: usize = 32;
 const DATA_LENGTH: usize = 255 - ECC_LENGTH;
 
 pub struct ErrorCorrector;

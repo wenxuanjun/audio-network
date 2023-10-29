@@ -1,4 +1,5 @@
 use super::{BitByteConverter, Modem};
+use crate::number::FP;
 
 const BIT_PER_SYMBOL: usize = 1;
 const SYMBOL_RATE: usize = Psk::BIT_RATE / BIT_PER_SYMBOL;
@@ -6,7 +7,7 @@ const CHUNK_VARIANCE: usize = 2usize.pow(BIT_PER_SYMBOL as u32);
 
 pub struct Psk {
     sample_rate: usize,
-    standard_chunk: [Vec<f32>; CHUNK_VARIANCE],
+    standard_chunk: [Vec<FP>; CHUNK_VARIANCE],
     gray_code: [Vec<u8>; CHUNK_VARIANCE],
 }
 
@@ -17,28 +18,29 @@ impl Modem for Psk {
         let sine_chunk = |length, phase| {
             (0..length)
                 .map(|index| {
-                    (index as f32 / sample_rate as f32
-                        * 2.0
-                        * std::f32::consts::PI
-                        * Psk::CARRIER_FREQUENCY
-                        + phase as f32)
-                        .sin()
+                    let result: FP = FP::from(index)
+                        / FP::from(sample_rate)
+                        * FP::from(2.0)
+                        * FP::PI
+                        * FP::from(Psk::CARRIER_FREQUENCY)
+                        + phase;
+                    result.sin()
                 })
                 .collect::<Vec<_>>()
         };
 
         let start_phase = if BIT_PER_SYMBOL == 1 {
-            0.0
+            FP::ZERO
         } else {
-            std::f32::consts::PI / CHUNK_VARIANCE as f32
+            FP::PI / FP::from(CHUNK_VARIANCE)
         };
 
         let standard_chunk = (0..2usize.pow(BIT_PER_SYMBOL as u32))
             .map(|index| {
-                let round = std::f32::consts::PI * 2.0;
+                let round = FP::PI * FP::from(2.0);
                 sine_chunk(
                     sample_rate / SYMBOL_RATE,
-                    start_phase + index as f32 * round / CHUNK_VARIANCE as f32,
+                    start_phase + FP::from(index) * round / FP::from(CHUNK_VARIANCE),
                 )
             })
             .collect::<Vec<_>>();
@@ -64,7 +66,7 @@ impl Modem for Psk {
         }
     }
 
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32> {
+    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP> {
         BitByteConverter::bytes_to_bits(bytes)
             .chunks(BIT_PER_SYMBOL)
             .flat_map(|chunk| {
@@ -81,7 +83,7 @@ impl Modem for Psk {
             .collect()
     }
 
-    fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8> {
+    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8> {
         let chunk_length = self.sample_rate / SYMBOL_RATE;
 
         let bits = samples
@@ -94,8 +96,8 @@ impl Modem for Psk {
                         chunk
                             .iter()
                             .zip(standard.iter())
-                            .map(|(a, b)| a * b)
-                            .sum::<f32>()
+                            .map(|(a, b)| *a * *b)
+                            .sum::<FP>()
                     })
                     .collect::<Vec<_>>();
 
@@ -118,7 +120,7 @@ impl Modem for Psk {
 }
 
 impl Psk {
-    pub const BIT_RATE: usize = 1000;
+    pub const BIT_RATE: usize = 1250;
     const CARRIER_FREQUENCY: f32 = 2400.0;
 }
 
@@ -141,7 +143,7 @@ mod tests {
 
         modulated
             .iter_mut()
-            .for_each(|sample| *sample += rand::random::<f32>() / 2.0);
+            .for_each(|sample| *sample += FP::from(rand::random::<f32>()) / FP::from(2.0));
 
         let demodulated = psk.demodulate(&modulated);
 

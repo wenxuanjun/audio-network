@@ -1,4 +1,5 @@
 use super::{BitByteConverter, Modem};
+use crate::number::FP;
 use rustfft::FftDirection::{Forward, Inverse};
 use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
@@ -41,7 +42,7 @@ impl Modem for Ofdm {
         }
     }
 
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32> {
+    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP> {
         assert!(
             bytes.len() % PACKET_DATA_BYTES == 0,
             "Bad data length: {}, can only modulate N * {} bytes per time!",
@@ -55,7 +56,7 @@ impl Modem for Ofdm {
             .collect()
     }
 
-    fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8> {
+    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8> {
         assert!(
             samples.len() % PACKET_SAMPLES == 0,
             "Bad data length: {}, can only demodulate N * {} samples per time!",
@@ -73,7 +74,7 @@ impl Modem for Ofdm {
 }
 
 impl Ofdm {
-    fn encode_packet(&self, chunk: &[u8]) -> Vec<f32> {
+    fn encode_packet(&self, chunk: &[u8]) -> Vec<FP> {
         let bits = {
             let train_empty_bits = [0u8; BIT_PER_SYMBOL];
             let data_bits = BitByteConverter::bytes_to_bits(chunk);
@@ -99,21 +100,21 @@ impl Ofdm {
 
                 buffer
                     .iter()
-                    .map(|x| x.re)
+                    .map(|x| FP::from(x.re))
                     .skip(DATA_SAMPLES - CYCLIC_PREFIX_SAMPLES)
-                    .chain(buffer.iter().map(|x| x.re))
+                    .chain(buffer.iter().map(|x| FP::from(x.re)))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
     }
 
-    fn decode_packet(&self, chunk: &[f32]) -> Vec<u8> {
+    fn decode_packet(&self, chunk: &[FP]) -> Vec<u8> {
         let (train_samples, data_samples) = chunk.split_at(SAMPLES_PER_SYMBOL);
 
         let train_args = {
             let mut buffer = train_samples[CYCLIC_PREFIX_SAMPLES..]
                 .iter()
-                .map(|x| Complex::new(*x, 0.0))
+                .map(|x| Complex::new(FP::into(*x), 0.0))
                 .collect::<Vec<_>>();
 
             self.ffts[0].process(&mut buffer);
@@ -131,7 +132,7 @@ impl Ofdm {
                 buffer
                     .iter_mut()
                     .zip(chunk[CYCLIC_PREFIX_SAMPLES..].iter())
-                    .for_each(|(x, y)| *x = Complex::new(*y, 0.0));
+                    .for_each(|(x, y)| *x = Complex::new(FP::into(*y), 0.0));
 
                 self.ffts[0].process(&mut buffer);
 
@@ -163,7 +164,7 @@ mod tests {
 
         modulated
             .iter_mut()
-            .for_each(|sample| *sample += rand::random::<f32>() / 2.0);
+            .for_each(|sample| *sample += FP::from(rand::random::<f32>()) / FP::from(2.0));
 
         let demodulated = ofdm.demodulate(&modulated);
 

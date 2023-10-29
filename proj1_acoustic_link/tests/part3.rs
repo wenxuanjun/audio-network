@@ -2,8 +2,9 @@ use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
 use proj1_acoustic_link::frame::PreambleSequence;
-use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk};
+use proj1_acoustic_link::modem::{BitByteConverter, Ofdm, Psk};
 use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
+use proj1_acoustic_link::number::FP;
 
 const TEST_EXTRA_WAITING: usize = 1;
 const TEST_SEQUENCE_BYTES: usize = 250;
@@ -98,13 +99,14 @@ fn part3_ck1_selfcheck() {
         .map(|_| rand::random::<u8>())
         .collect();
 
-    Sender::<Psk>::register(&audio, &test_data);
+    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &test_data);
     let received_output = Receiver::<Psk>::register(&audio);
+    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -113,8 +115,8 @@ fn part3_ck1_selfcheck() {
     let mut received_output = received_output.lock().unwrap();
 
     let demodulated_data = &mut received_output.demodulated_data;
-    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
     println!("Demodulated data bytes: {:?}", demodulated_data.len());
+    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
 
     count_error(&test_data, demodulated_data);
 
@@ -132,27 +134,30 @@ fn part4_ck1_selfcheck() {
         .collect();
 
     let encoded_data = ErrorCorrector::encode(&test_data);
+    let origin_encoded_length = encoded_data.len();
 
-    Sender::<Psk>::register(&audio, &encoded_data);
+    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &encoded_data);
     let received_output = Receiver::<Psk>::register(&audio);
+    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((encoded_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    let received_output = received_output.lock().unwrap();
-    let demodulated_data = &received_output.demodulated_data;
+    let mut received_output = received_output.lock().unwrap();
+    let demodulated_data = &mut received_output.demodulated_data;
     println!("Demodulated data bytes: {:?}", demodulated_data.len());
     count_error(&encoded_data, demodulated_data);
 
+    demodulated_data.truncate(origin_encoded_length);
     let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
     println!("Decoded data length: {:?}", decoded_data.len());
-    
+
     decoded_data.truncate(TEST_SEQUENCE_BYTES);
     count_error(&test_data, &decoded_data);
 }
@@ -161,29 +166,17 @@ fn part4_ck1_selfcheck() {
 fn part5_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
     let sample_rate = audio.sample_rate.borrow().unwrap();
-    
+
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>())
         .collect();
 
-    let mut encoded_data = ErrorCorrector::encode(&test_data);
-
-    println!("Encoded data length: {:?}", encoded_data.len());
-
+    let encoded_data = ErrorCorrector::encode(&test_data);
     let origin_encoded_length = encoded_data.len();
 
-    let actual_sequence_bytes = {
-        let unit_payload_bytes = Ofdm::PREFERED_PAYLOAD_BYTES;
-        let extra_bytes = unit_payload_bytes - origin_encoded_length % unit_payload_bytes;
-        origin_encoded_length + extra_bytes
-    };
-
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
-
-    encoded_data.resize(actual_sequence_bytes, 0);
-
-    Sender::<Ofdm>::register(&audio, &encoded_data);
+    let actual_sequence_bytes = Sender::<Ofdm>::register(&audio, &encoded_data);
     let received_output = Receiver::<Ofdm>::register(&audio);
+    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
 
     println!("Activating audio...");
     audio.activate();
@@ -195,7 +188,6 @@ fn part5_ck1_selfcheck() {
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
     let mut received_output = received_output.lock().unwrap();
-
     let demodulated_data = &mut received_output.demodulated_data;
     println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
@@ -264,7 +256,7 @@ fn plot_process_result(file_name: &str, data: &[f32]) {
     std::fs::remove_file(file_name).unwrap();
 }
 
-fn correlate(data: &[f32], kernel: &[f32]) -> Vec<f32> {
+fn correlate(data: &[f32], kernel: &[FP]) -> Vec<f32> {
     use rustfft::{num_complex::Complex, FftPlanner};
 
     let kernel_length = kernel.len();
@@ -279,7 +271,10 @@ fn correlate(data: &[f32], kernel: &[f32]) -> Vec<f32> {
     };
 
     let mut data = map_zero_padding(data, shape);
-    let mut kernel = map_zero_padding(kernel, shape);
+    let mut kernel = map_zero_padding(
+        &kernel.iter().map(|&x| FP::into(x)).collect::<Vec<_>>(),
+        shape,
+    );
 
     let mut planner = FftPlanner::<f32>::new();
     let fft = planner.plan_fft_forward(shape);

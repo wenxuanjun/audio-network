@@ -1,4 +1,5 @@
 use slice_deque::SliceDeque;
+use crate::number::FP;
 
 mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
@@ -14,11 +15,11 @@ pub enum FrameDetectorState {
 }
 
 pub struct FrameDetector {
-    preamble: Vec<f32>,
-    detect_buffer: SliceDeque<f32>,
-    payload_buffer: Vec<f32>,
+    preamble: Vec<FP>,
+    detect_buffer: SliceDeque<FP>,
+    payload_buffer: Vec<FP>,
     current_state: FrameDetectorState,
-    correlation_buffer: SliceDeque<f32>,
+    correlation_buffer: SliceDeque<FP>,
 }
 
 impl FrameDetector {
@@ -32,15 +33,15 @@ impl FrameDetector {
         }
     }
 
-    fn get_correlation(&self) -> f32 {
+    fn get_correlation(&self) -> FP {
         self.detect_buffer
             .iter()
             .zip(self.preamble.iter())
-            .map(|(a, b)| a * b)
-            .sum::<f32>()
+            .map(|(a, b)| *a * *b)
+            .sum::<FP>()
     }
 
-    pub fn update(&mut self, sample: f32) -> Option<&Vec<f32>> {
+    pub fn update(&mut self, sample: FP) -> Option<&Vec<FP>> {
         if self.detect_buffer.len() == PREAMBLE_LENGTH {
             self.detect_buffer.pop_front();
         }
@@ -67,11 +68,11 @@ impl FrameDetector {
                     .correlation_buffer
                     .iter()
                     .map(|&x| x.abs())
-                    .sum::<f32>()
-                    / PREAMBLE_LENGTH as f32;
+                    .sum::<FP>()
+                    / FP::from(PREAMBLE_LENGTH);
 
-                if correlation > DETECT_THRETSHOLD_MIN
-                    && correlation > average_correlation * DETECT_THRETSHOLD_RATIO
+                if correlation > FP::from(DETECT_THRETSHOLD_MIN)
+                    && correlation > average_correlation * FP::from(DETECT_THRETSHOLD_RATIO)
                 {
                     self.current_state = FrameDetectorState::MaybePayload;
                     self.payload_buffer.clear();

@@ -1,3 +1,5 @@
+use crate::number::FP;
+
 mod psk;
 pub use psk::Psk;
 
@@ -8,8 +10,8 @@ pub trait Modem {
     const PREFERED_PAYLOAD_BYTES: usize;
 
     fn new(sample_rate: usize) -> Self;
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<f32>;
-    fn demodulate(&self, samples: &Vec<f32>) -> Vec<u8>;
+    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP>;
+    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8>;
 }
 
 pub struct BitByteConverter;
