@@ -35,13 +35,16 @@ fn part3_ck1_sender() {
     let file_path = root_dir.join(TEST_INPUT_FILE);
     println!("Reading test data from {:?}", root_dir);
 
-    let test_data = std::fs::read_to_string(file_path.clone())
+    let test_data_bits = std::fs::read_to_string(file_path.clone())
         .unwrap()
         .chars()
         .map(|c| c.to_digit(10).unwrap() as u8)
         .collect::<Vec<_>>();
 
-    Sender::<Psk>::register(&audio, &test_data);
+    let test_data = BitByteConverter::bits_to_bytes(&test_data_bits);
+
+    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &test_data);
+    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
 
     println!("Press enter to start sending data...");
     let mut input = String::new();
@@ -50,7 +53,7 @@ fn part3_ck1_sender() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -82,7 +85,7 @@ fn part3_ck1_receiver() {
     let demodulated_data = &received_output.demodulated_data;
     println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
-    let demodulated_data = demodulated_data
+    let demodulated_data = BitByteConverter::bytes_to_bits(demodulated_data)
         .iter()
         .map(|&x| x.to_string())
         .collect::<String>();
