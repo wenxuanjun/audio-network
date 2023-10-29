@@ -7,7 +7,7 @@ use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
 use proj1_acoustic_link::number::FP;
 
 const TEST_EXTRA_WAITING: usize = 1;
-const TEST_SEQUENCE_BYTES: usize = 250;
+const TEST_SEQUENCE_BYTES: usize = 1250;
 
 const TEST_INPUT_FILE: &str = "INPUT.txt";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
@@ -18,13 +18,15 @@ fn part3_ck1_generate() {
     let file_path = root_dir.join(TEST_INPUT_FILE);
 
     let test_data = (0..TEST_SEQUENCE_BYTES)
-        .map(|_| rand::random::<u8>() % 2)
-        .collect::<Vec<u8>>()
+        .map(|_| rand::random::<u8>())
+        .collect::<Vec<u8>>();
+
+    let test_data_bits = BitByteConverter::bytes_to_bits(&test_data)
         .iter()
         .map(|&x| x.to_string())
         .collect::<String>();
 
-    std::fs::write(file_path.clone(), test_data).unwrap();
+    std::fs::write(file_path.clone(), test_data_bits).unwrap();
 }
 
 #[test]
@@ -81,9 +83,10 @@ fn part3_ck1_receiver() {
     println!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    let received_output = received_output.lock().unwrap();
-    let demodulated_data = &received_output.demodulated_data;
+    let mut received_output = received_output.lock().unwrap();
+    let demodulated_data = &mut received_output.demodulated_data;
     println!("Demodulated data bytes: {:?}", demodulated_data.len());
+    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
 
     let demodulated_data = BitByteConverter::bytes_to_bits(demodulated_data)
         .iter()
