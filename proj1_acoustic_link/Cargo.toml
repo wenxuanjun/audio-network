@@ -23,4 +23,3 @@ optional = true
 
 [features]
 fixed_point = ["fixed", "cordic"]
-#default = ["fixed_point"]

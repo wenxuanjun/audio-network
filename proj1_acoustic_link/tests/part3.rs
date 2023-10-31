@@ -187,7 +187,7 @@ fn part5_ck1_selfcheck() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((encoded_data.len() * 8).div_ceil(1000)) + TEST_EXTRA_WAITING;
+    let duration = ((encoded_data.len() * 8).div_ceil(1250)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");

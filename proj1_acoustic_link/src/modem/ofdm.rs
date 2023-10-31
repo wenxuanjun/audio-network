@@ -3,15 +3,15 @@ use crate::number::FP;
 use rustfft::FftDirection::{Forward, Inverse};
 use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
-const BIT_PER_SYMBOL: usize = 3;
-const DATA_SYMBOL_PER_PACKET: usize = 24;
+const BIT_PER_SYMBOL: usize = 4;
+const DATA_SYMBOL_PER_PACKET: usize = 48;
 
 const DATA_SAMPLES: usize = 128;
-const CYCLIC_PREFIX_SAMPLES: usize = 8;
+const CYCLIC_PREFIX_SAMPLES: usize = 12;
 const SAMPLES_PER_SYMBOL: usize = DATA_SAMPLES + CYCLIC_PREFIX_SAMPLES;
 
 const FFT_ENERGY_ZOOM: f32 = 1.0 / 4.0;
-const START_SUB_CARRIER_INDEX: usize = 6;
+const START_SUB_CARRIER_INDEX: usize = 18;
 
 const SYMBOL_PER_PACKET: usize = DATA_SYMBOL_PER_PACKET + 1;
 const PACKET_SAMPLES: usize = SYMBOL_PER_PACKET * SAMPLES_PER_SYMBOL;
@@ -23,7 +23,7 @@ pub struct Ofdm {
 }
 
 impl Modem for Ofdm {
-    const PREFERED_PAYLOAD_BYTES: usize = 36;
+    const PREFERED_PAYLOAD_BYTES: usize = 48;
 
     fn new(_: usize) -> Self {
         let ffts = [

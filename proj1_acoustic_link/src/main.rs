@@ -1,5 +1,5 @@
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{Modem, Ofdm, Psk};
+use proj1_acoustic_link::modem::{Modem, Ofdm, BitByteConverter};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
@@ -24,7 +24,7 @@ fn main() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(1250)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -40,16 +40,16 @@ fn main() {
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
-    let error_index: Vec<_> = origin
+    let error_index: Vec<_> = BitByteConverter::bytes_to_bits(origin)
         .iter()
-        .zip(result.iter())
+        .zip(BitByteConverter::bytes_to_bits(result).iter())
         .enumerate()
         .filter(|(_, (a, b))| a != b)
         .map(|(index, _)| index)
         .collect();
 
     println!(
-        "Error count: {:?}, Error: {:?}",
+        "Error bits: {:?}, Error index: {:?}",
         error_index.len(),
         error_index
     );
