@@ -4,8 +4,15 @@ use crate::number::FP;
 mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
-const DETECT_THRETSHOLD_MIN: f32 = 20.0;
-const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "cable_link")] {
+        const DETECT_THRETSHOLD_MIN: f32 = 100.0;
+        const DETECT_THRETSHOLD_RATIO: f32 = 6.5;
+    } else {
+        const DETECT_THRETSHOLD_MIN: f32 = 20.0;
+        const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
+    }
+}
 
 #[derive(PartialEq)]
 pub enum FrameDetectorState {

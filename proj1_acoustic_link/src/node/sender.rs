@@ -25,7 +25,7 @@ where
         let actual_sequence_bytes = {
             let unit_payload_bytes = <M as Modem>::PREFERED_PAYLOAD_BYTES;
             let extra_bytes = unit_payload_bytes - data.len() % unit_payload_bytes;
-            data.len() + extra_bytes
+            data.len() + extra_bytes % unit_payload_bytes
         };
         
         let mut data = data.clone();

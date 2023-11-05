@@ -209,6 +209,7 @@ dependencies = [
 name = "proj1_acoustic_link"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "cordic",
  "fixed",
  "hound",
@@ -219,6 +220,14 @@ dependencies = [
  "reed-solomon",
  "rustfft",
  "slice-deque",
+]
+
+[[package]]
+name = "proj2_multiple_access"
+version = "0.1.0"
+dependencies = [
+ "proj1_acoustic_link",
+ "rand",
 ]
 
 [[package]]

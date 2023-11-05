@@ -7,9 +7,12 @@ pub struct ErrorCorrector;
 
 impl ErrorCorrector {
     pub fn encode(data: &Vec<u8>) -> Vec<u8> {
-        data.chunks(DATA_LENGTH)
-            .flat_map(|chunk| Encoder::new(ECC_LENGTH).encode(&chunk).to_vec())
-            .collect()
+        let encode = |chunk: &[u8]| {
+            let encoder = Encoder::new(ECC_LENGTH);
+            encoder.encode(&chunk).to_vec()
+        };
+
+        data.chunks(DATA_LENGTH).flat_map(encode).collect()
     }
 
     pub fn decode(data: &Vec<u8>) -> Vec<u8> {

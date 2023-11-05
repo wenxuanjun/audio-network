@@ -8,6 +8,9 @@ mod corrector;
 pub use corrector::ErrorCorrector;
 
 static WARMUP_SEQUENCE: Lazy<Vec<u8>> = Lazy::new(|| {
+    #[cfg(feature = "cable_link")]
+    const WARMUP_SEQUENCE_BYTES: usize = 120;
+    #[cfg(not(feature = "cable_link"))]
     const WARMUP_SEQUENCE_BYTES: usize = 24;
 
     (0..WARMUP_SEQUENCE_BYTES)

@@ -55,7 +55,7 @@ fn part3_ck1_sender() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -112,7 +112,7 @@ fn part3_ck1_selfcheck() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -149,7 +149,7 @@ fn part4_ck1_selfcheck() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((actual_sequence_bytes * 8).div_ceil(Psk::BIT_RATE)) + TEST_EXTRA_WAITING;
+    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");

@@ -2,7 +2,10 @@ use super::{BitByteConverter, Modem};
 use crate::number::FP;
 
 const BIT_PER_SYMBOL: usize = 1;
-const SYMBOL_RATE: usize = Psk::BIT_RATE / BIT_PER_SYMBOL;
+const BIT_RATE_MUL_RATIO: usize = 1250;
+const CARRIER_FREQUENCY: f32 = 1600.0;
+
+const SYMBOL_RATE: usize = BIT_RATE_MUL_RATIO * BIT_PER_SYMBOL / BIT_PER_SYMBOL;
 const CHUNK_VARIANCE: usize = 2usize.pow(BIT_PER_SYMBOL as u32);
 
 pub struct Psk {
@@ -15,54 +18,13 @@ impl Modem for Psk {
     const PREFERED_PAYLOAD_BYTES: usize = 16;
 
     fn new(sample_rate: usize) -> Self {
-        let sine_chunk = |length, phase| {
-            (0..length)
-                .map(|index| {
-                    let result: FP = FP::from(index)
-                        / FP::from(sample_rate)
-                        * FP::from(2.0)
-                        * FP::PI
-                        * FP::from(Psk::CARRIER_FREQUENCY)
-                        + phase;
-                    result.sin()
-                })
-                .collect::<Vec<_>>()
-        };
-
-        let start_phase = if BIT_PER_SYMBOL == 1 {
-            FP::ZERO
-        } else {
-            FP::PI / FP::from(CHUNK_VARIANCE)
-        };
-
-        let standard_chunk = (0..2usize.pow(BIT_PER_SYMBOL as u32))
-            .map(|index| {
-                let round = FP::PI * FP::from(2.0);
-                sine_chunk(
-                    sample_rate / SYMBOL_RATE,
-                    start_phase + FP::from(index) * round / FP::from(CHUNK_VARIANCE),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let gray_code = |bits| {
-            let mut gray_code = vec![vec![0], vec![1]];
-
-            (0..bits - 1).for_each(|_| {
-                let mut reflected = gray_code.clone();
-                reflected.reverse();
-                reflected.iter_mut().for_each(|code| code.insert(0, 1));
-                gray_code.iter_mut().for_each(|code| code.insert(0, 0));
-                gray_code.extend(reflected);
-            });
-
-            gray_code
-        };
+        let gray_code = Self::gray_code(BIT_PER_SYMBOL);
+        let standard_chunk = Self::standard_chunk(sample_rate);
 
         Self {
             sample_rate,
             standard_chunk: standard_chunk.try_into().unwrap(),
-            gray_code: gray_code(BIT_PER_SYMBOL).try_into().unwrap(),
+            gray_code: gray_code.try_into().unwrap(),
         }
     }
 
@@ -120,8 +82,53 @@ impl Modem for Psk {
 }
 
 impl Psk {
-    pub const BIT_RATE: usize = 1250;
-    const CARRIER_FREQUENCY: f32 = 2400.0;
+    fn gray_code(bits: usize) -> Vec<Vec<u8>> {
+        let mut gray_code = vec![vec![0], vec![1]];
+
+        (0..bits - 1).for_each(|_| {
+            let mut reflected = gray_code.clone();
+            reflected.reverse();
+            reflected.iter_mut().for_each(|code| code.insert(0, 1));
+            gray_code.iter_mut().for_each(|code| code.insert(0, 0));
+            gray_code.extend(reflected);
+        });
+
+        gray_code
+    }
+
+    fn standard_chunk(sample_rate: usize) -> Vec<Vec<FP>> {
+        let sine_chunk = |length, phase| {
+            (0..length)
+                .map(|index| {
+                    let result: FP = FP::from(index)
+                        / FP::from(sample_rate)
+                        * FP::from(2.0)
+                        * FP::PI
+                        * FP::from(CARRIER_FREQUENCY)
+                        + phase;
+                    result.sin()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let start_phase = if BIT_PER_SYMBOL == 1 {
+            FP::ZERO
+        } else {
+            FP::PI / FP::from(CHUNK_VARIANCE)
+        };
+
+        (0..2usize.pow(BIT_PER_SYMBOL as u32))
+            .map(|index| {
+                let round = FP::PI * FP::from(2.0);
+                let phase_slice = round / FP::from(CHUNK_VARIANCE);
+                
+                sine_chunk(
+                    sample_rate / SYMBOL_RATE,
+                    start_phase + FP::from(index) * phase_slice,
+                )
+            })
+            .collect::<Vec<_>>()
+    }
 }
 
 #[cfg(test)]

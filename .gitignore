@@ -13,3 +13,5 @@
 # Input and output files for testing
 INPUT.txt
 OUTPUT.txt
+INPUT.bin
+OUTPUT.bin

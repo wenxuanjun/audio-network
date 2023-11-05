@@ -1,0 +1,11 @@
+[package]
+name = "proj2_multiple_access"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "0.8.5"
+
+[dependencies.proj1_acoustic_link]
+path = "../proj1_acoustic_link"
+features = ["cable_link"]

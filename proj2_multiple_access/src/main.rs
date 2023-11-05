@@ -1,20 +1,14 @@
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{Modem, Ofdm, BitByteConverter};
+use proj1_acoustic_link::modem::{Ofdm, BitByteConverter};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
 const TEST_EXTRA_WAITING: usize = 1;
-const TEST_SEQUENCE_BYTES: usize = 250;
+const TEST_SEQUENCE_BYTES: usize = 6250;
 
 fn main() {
     let audio = Audio::new().unwrap();
 
-    let actual_sequence_bytes = {
-        let unit_payload_bytes = Ofdm::PREFERED_PAYLOAD_BYTES;
-        let extra_bytes = unit_payload_bytes - TEST_SEQUENCE_BYTES % unit_payload_bytes;
-        TEST_SEQUENCE_BYTES + extra_bytes
-    };
-
-    let test_data: Vec<_> = (0..actual_sequence_bytes)
+    let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>())
         .collect();
 
@@ -24,7 +18,7 @@ fn main() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(1250)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(15000)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");
@@ -53,4 +47,6 @@ fn count_error(origin: &[u8], result: &[u8]) {
         error_index.len(),
         error_index
     );
+
+    assert_eq!(error_index.len(), 0);
 }

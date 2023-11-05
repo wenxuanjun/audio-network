@@ -1,11 +1,13 @@
 use std::cell::RefCell;
 use std::sync::RwLock;
 
-use jack::{AsyncClient, ClientOptions, Error, LatencyType};
+use jack::{AsyncClient, ClientOptions, Error};
 use jack::{AudioIn, AudioOut, Client, Port};
 use jack::{ClosureProcessHandler, Control, ProcessScope};
 
-pub(crate) type AudioCallback = Box<dyn FnMut(&mut AudioPorts, &ProcessScope) + Send + Sync>;
+pub(crate) type AudioCallback =
+    Box<dyn FnMut(&mut AudioPorts, &ProcessScope) + Send + Sync>;
+
 type ClientCallback = impl Fn(&Client, &ProcessScope) -> Control + Send;
 type AsyncClientCallback = AsyncClient<(), ClosureProcessHandler<ClientCallback>>;
 
@@ -53,15 +55,9 @@ impl Audio {
 
         let (client, _status) =
             Client::new(&client_name, ClientOptions::NO_START_SERVER)?;
-    
-        let capture_port = client.port_by_name("system:capture_1").unwrap();
-        let playback_port = client.port_by_name("system:playback_1").unwrap();
 
         let in_port = client.register_port("input", AudioIn::default())?;
         let out_port = client.register_port("output", AudioOut::default())?;
-
-        client.connect_ports(&capture_port, &in_port)?;
-        client.connect_ports(&out_port, &playback_port)?;
 
         let sample_rate = client.sample_rate();
         *self.client.borrow_mut() = Some(client);
@@ -101,8 +97,20 @@ impl Audio {
         };
         
         let process = ClosureProcessHandler::new(process_callback);
-
         let active_client = client.unwrap().activate_async((), process).unwrap();
+
+        {
+            let client = active_client.as_client();
+
+            let capture_port = client.port_by_name("system:capture_1").unwrap();
+            let playback_port = client.port_by_name("system:playback_1").unwrap();
+
+            if let Some(ports) = ports.read().unwrap().as_ref() {
+                client.connect_ports(&capture_port, &ports.capture).unwrap();
+                client.connect_ports(&ports.playback, &playback_port).unwrap();
+            };
+        }
+
         *self.active_client.borrow_mut() = Some(active_client);
     }
 
@@ -115,24 +123,10 @@ impl Audio {
                 self.init_client().unwrap();
             },
             AudioDeactivateFlag::CleanRestart => {
-                self.clear_callbacks();
+                self.callbacks.write().unwrap().clear();
                 self.init_client().unwrap();
             },
             AudioDeactivateFlag::Deactivate => {}
         }
-    }    
-
-    pub fn clear_callbacks(&self) {
-        self.callbacks.write().unwrap().clear();
-    }
-
-    pub fn get_latency(&self) -> f64 {
-        let min_latency = {
-            let ports = self.ports.read().unwrap();
-            let capture = &ports.as_ref().unwrap().capture;
-            capture.get_latency_range(LatencyType::Capture).0
-        };
-        let sample_rate = self.sample_rate.borrow().unwrap();
-        min_latency as f64 / sample_rate as f64 * 1000.0
     }
 }

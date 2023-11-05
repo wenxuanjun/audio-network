@@ -3,16 +3,23 @@ use crate::number::FP;
 use rustfft::FftDirection::{Forward, Inverse};
 use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
-const BIT_PER_SYMBOL: usize = 4;
-const DATA_SYMBOL_PER_PACKET: usize = 48;
-
-const DATA_SAMPLES: usize = 128;
-const CYCLIC_PREFIX_SAMPLES: usize = 12;
-const SAMPLES_PER_SYMBOL: usize = DATA_SAMPLES + CYCLIC_PREFIX_SAMPLES;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "cable_link")] {
+        const BIT_PER_SYMBOL: usize = 20;
+        const DATA_SAMPLES: usize = 64;
+        const START_SUB_CARRIER_INDEX: usize = 1;
+        const CYCLIC_PREFIX_SAMPLES: usize = 1;
+    } else {
+        const BIT_PER_SYMBOL: usize = 4;
+        const DATA_SAMPLES: usize = 128;
+        const START_SUB_CARRIER_INDEX: usize = 18;
+        const CYCLIC_PREFIX_SAMPLES: usize = 12;
+    }
+}
 
 const FFT_ENERGY_ZOOM: f32 = 1.0 / 4.0;
-const START_SUB_CARRIER_INDEX: usize = 18;
-
+const DATA_SYMBOL_PER_PACKET: usize = 48;
+const SAMPLES_PER_SYMBOL: usize = DATA_SAMPLES + CYCLIC_PREFIX_SAMPLES;
 const SYMBOL_PER_PACKET: usize = DATA_SYMBOL_PER_PACKET + 1;
 const PACKET_SAMPLES: usize = SYMBOL_PER_PACKET * SAMPLES_PER_SYMBOL;
 const PACKET_DATA_BYTES: usize = BIT_PER_SYMBOL * DATA_SYMBOL_PER_PACKET / 8;
@@ -23,6 +30,9 @@ pub struct Ofdm {
 }
 
 impl Modem for Ofdm {
+    #[cfg(feature = "cable_link")]
+    const PREFERED_PAYLOAD_BYTES: usize = 120;
+    #[cfg(not(feature = "cable_link"))]
     const PREFERED_PAYLOAD_BYTES: usize = 48;
 
     fn new(_: usize) -> Self {
@@ -152,7 +162,7 @@ mod tests {
     use super::*;
 
     const SAMPLE_RATE: usize = 48000;
-    const TEST_SEQUENCE_BYTES: usize = 36;
+    const TEST_SEQUENCE_BYTES: usize = 1920;
 
     #[test]
     fn test_ofdm() {
@@ -161,12 +171,14 @@ mod tests {
         let ofdm = Ofdm::new(SAMPLE_RATE);
 
         let mut modulated = ofdm.modulate(&data);
+        println!("Modulated data samples: {:?}", modulated.len());
 
         modulated
             .iter_mut()
             .for_each(|sample| *sample += FP::from(rand::random::<f32>()) / FP::from(2.0));
 
         let demodulated = ofdm.demodulate(&modulated);
+        println!("Demodulated data bytes: {:?}", demodulated.len());
 
         assert_eq!(data, demodulated);
     }
