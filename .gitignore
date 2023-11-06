@@ -7,11 +7,12 @@
 # Allow test audio files
 !Sample.wav
 
-# Generated python plots
+# Generated python plots or scripts
 *.py
+*.sh
 
 # Input and output files for testing
 INPUT.txt
 OUTPUT.txt
-INPUT.bin
-OUTPUT.bin
+INPUT*.bin
+OUTPUT*.bin

@@ -1,12 +1,12 @@
 use std::cell::RefCell;
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 use jack::{AsyncClient, ClientOptions, Error};
 use jack::{AudioIn, AudioOut, Client, Port};
 use jack::{ClosureProcessHandler, Control, ProcessScope};
 
-pub(crate) type AudioCallback =
-    Box<dyn FnMut(&mut AudioPorts, &ProcessScope) + Send + Sync>;
+pub(crate) type AudioCallback = Box<dyn FnMut(&mut AudioPorts, &ProcessScope) + Send + Sync>;
 
 type ClientCallback = impl Fn(&Client, &ProcessScope) -> Control + Send;
 type AsyncClientCallback = AsyncClient<(), ClosureProcessHandler<ClientCallback>>;
@@ -15,11 +15,11 @@ const CLIENT_NAME_PREFIX: &str = "AcousticNetwork";
 
 pub struct Audio {
     client: RefCell<Option<Client>>,
-    ports: RwLock<Option<AudioPorts>>,
-    pub timetick: RwLock<u64>,
+    ports: Mutex<Option<AudioPorts>>,
+    pub timetick: AtomicU64,
     active_client: RefCell<Option<AsyncClientCallback>>,
     pub sample_rate: RefCell<Option<usize>>,
-    callbacks: RwLock<Vec<AudioCallback>>,
+    callbacks: Mutex<Vec<AudioCallback>>,
 }
 
 pub struct AudioPorts {
@@ -37,11 +37,11 @@ impl Audio {
     pub fn new() -> Result<&'static Audio, Error> {
         let audio = Audio {
             client: RefCell::new(None),
-            ports: RwLock::new(None),
-            timetick: RwLock::new(0),
+            ports: Mutex::new(None),
+            timetick: AtomicU64::new(0),
             active_client: RefCell::new(None),
             sample_rate: RefCell::new(None),
-            callbacks: RwLock::new(Vec::new()),
+            callbacks: Mutex::new(Vec::new()),
         };
 
         audio.init_client()?;
@@ -53,8 +53,7 @@ impl Audio {
         let random_node_id = rand::random::<u8>();
         let client_name = format!("{}-{}", CLIENT_NAME_PREFIX, random_node_id);
 
-        let (client, _status) =
-            Client::new(&client_name, ClientOptions::NO_START_SERVER)?;
+        let (client, _status) = Client::new(&client_name, ClientOptions::NO_START_SERVER)?;
 
         let in_port = client.register_port("input", AudioIn::default())?;
         let out_port = client.register_port("output", AudioOut::default())?;
@@ -67,35 +66,40 @@ impl Audio {
             playback: out_port,
         };
 
-        *self.ports.write().unwrap() = Some(ports);
+        *self.ports.lock().unwrap() = Some(ports);
         *self.sample_rate.borrow_mut() = Some(sample_rate);
-        *self.timetick.write().unwrap() = 0;
+        self.timetick.store(0, Ordering::Relaxed);
 
         Ok(())
     }
 
     pub fn register(&'static self, callback: AudioCallback) {
-        self.callbacks.write().unwrap().push(callback);
+        self.callbacks.lock().unwrap().push(callback);
     }
 
     pub fn activate(&'static self) {
-        let Self { ports, timetick, callbacks, .. } = self;
+        let Self {
+            ports,
+            timetick,
+            callbacks,
+            ..
+        } = self;
 
         let client = self.client.borrow_mut().take();
         let buffer_size = client.as_ref().unwrap().buffer_size();
 
         let process_callback = move |_: &Client, ps: &ProcessScope| -> Control {
-            let mut ports = ports.write().unwrap();
+            let mut ports = ports.lock().unwrap();
 
-            let mut callbacks = callbacks.write().unwrap();
+            let mut callbacks = callbacks.lock().unwrap();
             for callback in callbacks.iter_mut() {
                 callback(&mut ports.as_mut().unwrap(), ps);
             }
 
-            *timetick.write().unwrap() += buffer_size as u64;
+            timetick.fetch_add(buffer_size as u64, Ordering::Relaxed);
             Control::Continue
         };
-        
+
         let process = ClosureProcessHandler::new(process_callback);
         let active_client = client.unwrap().activate_async((), process).unwrap();
 
@@ -105,9 +109,11 @@ impl Audio {
             let capture_port = client.port_by_name("system:capture_1").unwrap();
             let playback_port = client.port_by_name("system:playback_1").unwrap();
 
-            if let Some(ports) = ports.read().unwrap().as_ref() {
+            if let Some(ports) = ports.lock().unwrap().as_ref() {
                 client.connect_ports(&capture_port, &ports.capture).unwrap();
-                client.connect_ports(&ports.playback, &playback_port).unwrap();
+                client
+                    .connect_ports(&ports.playback, &playback_port)
+                    .unwrap();
             };
         }
 
@@ -117,15 +123,15 @@ impl Audio {
     pub fn deactivate(&self, flag: AudioDeactivateFlag) {
         let client = self.active_client.take().unwrap();
         client.deactivate().unwrap();
-    
+
         match flag {
             AudioDeactivateFlag::Restart => {
                 self.init_client().unwrap();
-            },
+            }
             AudioDeactivateFlag::CleanRestart => {
-                self.callbacks.write().unwrap().clear();
+                self.callbacks.lock().unwrap().clear();
                 self.init_client().unwrap();
-            },
+            }
             AudioDeactivateFlag::Deactivate => {}
         }
     }

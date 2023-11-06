@@ -18,7 +18,7 @@ fn main() {
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(15000)) + TEST_EXTRA_WAITING;
+    let duration = ((test_data.len() * 8).div_ceil(17500)) + TEST_EXTRA_WAITING;
     std::thread::sleep(std::time::Duration::from_secs(duration as u64));
 
     println!("Deactivating audio...");

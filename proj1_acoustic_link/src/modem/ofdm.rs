@@ -8,7 +8,7 @@ cfg_if::cfg_if! {
         const BIT_PER_SYMBOL: usize = 20;
         const DATA_SAMPLES: usize = 64;
         const START_SUB_CARRIER_INDEX: usize = 1;
-        const CYCLIC_PREFIX_SAMPLES: usize = 1;
+        const CYCLIC_PREFIX_SAMPLES: usize = 0;
     } else {
         const BIT_PER_SYMBOL: usize = 4;
         const DATA_SAMPLES: usize = 128;
@@ -18,7 +18,7 @@ cfg_if::cfg_if! {
 }
 
 const FFT_ENERGY_ZOOM: f32 = 1.0 / 4.0;
-const DATA_SYMBOL_PER_PACKET: usize = 48;
+const DATA_SYMBOL_PER_PACKET: usize = 24;
 const SAMPLES_PER_SYMBOL: usize = DATA_SAMPLES + CYCLIC_PREFIX_SAMPLES;
 const SYMBOL_PER_PACKET: usize = DATA_SYMBOL_PER_PACKET + 1;
 const PACKET_SAMPLES: usize = SYMBOL_PER_PACKET * SAMPLES_PER_SYMBOL;
@@ -30,10 +30,15 @@ pub struct Ofdm {
 }
 
 impl Modem for Ofdm {
-    #[cfg(feature = "cable_link")]
-    const PREFERED_PAYLOAD_BYTES: usize = 120;
-    #[cfg(not(feature = "cable_link"))]
-    const PREFERED_PAYLOAD_BYTES: usize = 48;
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "cable_link")] {
+            const PREFERED_PAYLOAD_BYTES: usize = 120;
+            const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (1600.0, 3200.0);
+        } else {
+            const PREFERED_PAYLOAD_BYTES: usize = 48;
+            const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (3600.0, 5200.0);
+        }
+    }
 
     fn new(_: usize) -> Self {
         let ffts = [

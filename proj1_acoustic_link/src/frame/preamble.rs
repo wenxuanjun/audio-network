@@ -1,23 +1,29 @@
-use crate::number::FP;
+use crate::{modem::Modem, number::FP};
+use std::marker::PhantomData;
 
+#[cfg(feature = "cable_link")]
+pub const PREAMBLE_LENGTH: usize = 240;
+#[cfg(not(feature = "cable_link"))]
 pub const PREAMBLE_LENGTH: usize = 480;
-const PREAMBLE_FREQ_MIN: f32 = 3600.0;
-const PREAMBLE_FREQ_MAX: f32 = 5200.0;
 
-pub struct PreambleSequence;
+pub struct PreambleSequence<M> {
+    modem: PhantomData<M>,
+}
 
-impl PreambleSequence {
+impl<M: Modem> PreambleSequence<M> {
     pub fn new(sample_rate: usize) -> Vec<FP> {
-        let preamble_center: FP = FP::from(PREAMBLE_LENGTH) / FP::from(2.0);
-        let frequency_diff: FP = FP::from(PREAMBLE_FREQ_MAX) - FP::from(PREAMBLE_FREQ_MIN);
+        let (freq_min, freq_max) = <M as Modem>::PREAMBLE_FREQUENCY_RANGE;
+
+        let frequency_diff = FP::from(freq_max) - FP::from(freq_min);
+        let preamble_center = FP::from(PREAMBLE_LENGTH) / FP::from(2.0);
 
         let get_frequency = |index: usize| {
             if index < FP::into::<usize>(preamble_center) {
                 let ratio = FP::from(index) / preamble_center;
-                FP::from(PREAMBLE_FREQ_MIN) + frequency_diff * ratio
+                FP::from(freq_min) + frequency_diff * ratio
             } else {
                 let ratio = (FP::from(index) - preamble_center) / preamble_center;
-                FP::from(PREAMBLE_FREQ_MAX) - frequency_diff * ratio
+                FP::from(freq_max) - frequency_diff * ratio
             }
         };
 
@@ -32,4 +38,3 @@ impl PreambleSequence {
         preamble_samples
     }
 }
-

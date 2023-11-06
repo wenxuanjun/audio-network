@@ -8,6 +8,7 @@ pub use ofdm::Ofdm;
 
 pub trait Modem {
     const PREFERED_PAYLOAD_BYTES: usize;
+    const PREAMBLE_FREQUENCY_RANGE: (f32, f32);
 
     fn new(sample_rate: usize) -> Self;
     fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP>;

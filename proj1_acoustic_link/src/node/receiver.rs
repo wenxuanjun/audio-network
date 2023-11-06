@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use crate::audio::{Audio, AudioPorts};
-use crate::number::FP;
-use crate::frame::FrameDetector;
+use crate::frame::{FrameDetector, PreambleSequence};
 use crate::modem::Modem;
+use crate::number::FP;
 
 #[derive(Default)]
 pub struct ReceiverOutput {
@@ -32,7 +32,8 @@ where
             empty_frame.len()
         };
 
-        let mut frame_detector = FrameDetector::new(sample_rate, payload_capacity);
+        let preamble = PreambleSequence::<M>::new(sample_rate);
+        let mut frame_detector = FrameDetector::new(preamble, payload_capacity);
 
         let received_output = Arc::new(Mutex::new(ReceiverOutput::default()));
         let received_output_clone = received_output.clone();
@@ -52,7 +53,6 @@ where
         };
 
         audio.register(Box::new(capture_callback));
-
         println!("Capture demodulated data registered!");
 
         received_output

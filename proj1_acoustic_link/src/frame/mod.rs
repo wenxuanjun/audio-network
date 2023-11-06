@@ -6,8 +6,8 @@ pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const DETECT_THRETSHOLD_MIN: f32 = 100.0;
-        const DETECT_THRETSHOLD_RATIO: f32 = 6.5;
+        const DETECT_THRETSHOLD_MIN: f32 = 50.0;
+        const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
     } else {
         const DETECT_THRETSHOLD_MIN: f32 = 20.0;
         const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
@@ -30,9 +30,9 @@ pub struct FrameDetector {
 }
 
 impl FrameDetector {
-    pub fn new(sample_rate: usize, payload_capacity: usize) -> Self {
+    pub fn new(preamble: Vec<FP>, payload_capacity: usize) -> Self {
         Self {
-            preamble: PreambleSequence::new(sample_rate),
+            preamble,
             detect_buffer: SliceDeque::with_capacity(PREAMBLE_LENGTH),
             payload_buffer: Vec::with_capacity(payload_capacity),
             current_state: FrameDetectorState::Waiting,

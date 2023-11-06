@@ -16,6 +16,7 @@ pub struct Psk {
 
 impl Modem for Psk {
     const PREFERED_PAYLOAD_BYTES: usize = 16;
+    const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (900.0, 3000.0);
 
     fn new(sample_rate: usize) -> Self {
         let gray_code = Self::gray_code(BIT_PER_SYMBOL);
