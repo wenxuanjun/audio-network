@@ -8,7 +8,7 @@ const TEST_SECONDS: usize = 5;
 fn part1_ck1() {
     let audio = Audio::new().unwrap();
 
-    let sample_rate = audio.sample_rate.borrow().unwrap();
+    let sample_rate = audio.sample_rate.get().unwrap();
     let audio_input = AudioPacket::create_buffer(sample_rate * TEST_SECONDS);
 
     let capture_callback = CreateCallback::capture(audio_input.clone());
@@ -39,7 +39,7 @@ fn part1_ck1() {
 fn part1_ck2() {
     let audio = Audio::new().unwrap();
 
-    let sample_rate = audio.sample_rate.borrow().unwrap();
+    let sample_rate = audio.sample_rate.get().unwrap();
     let audio_sample = AudioPacket::create_reader("Sample.wav");
     let audio_input = AudioPacket::create_buffer(sample_rate * TEST_SECONDS);
 

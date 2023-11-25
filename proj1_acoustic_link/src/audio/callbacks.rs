@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use jack::ProcessScope;
 use super::{audio::AudioCallback, AudioPorts, AudioPacket};
@@ -13,7 +13,7 @@ impl CreateCallback {
         Box::new(capture_callback)
     }
 
-    pub fn playback(input: AudioPacket, timetick: &'static AtomicU64) -> AudioCallback {
+    pub fn playback(input: AudioPacket, timetick: &'static AtomicUsize) -> AudioCallback {
         let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
             let time = timetick.load(Ordering::Relaxed) as f32;
             let buffer = ports.playback.as_mut_slice(&ps);

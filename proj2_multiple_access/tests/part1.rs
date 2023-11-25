@@ -1,14 +1,16 @@
 use std::path::Path;
 
-use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::Ofdm;
+use proj1_acoustic_link::audio::Audio;
+use proj1_acoustic_link::modem::{Ofdm, Modem};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
-const TEST_EXTRA_WAITING: usize = 1;
 const TEST_SEQUENCE_BYTES: usize = 6250;
 
 const TEST_INPUT_FILE: &str = "INPUT.bin";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.bin";
+
+#[macro_use]
+extern crate nolog;
 
 #[test]
 fn part1_ck1_sender() {
@@ -16,27 +18,23 @@ fn part1_ck1_sender() {
 
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_INPUT_FILE);
-    println!("Reading test data from {:?}", root_dir);
+    info!("Reading test data from {:?}", file_path);
 
     let test_data = std::fs::read(file_path.clone()).unwrap();
 
-    let actual_sequence_bytes = Sender::<Ofdm>::register(&audio, &test_data);
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
-
-    println!("Press enter to start sending data...");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    println!("Activating audio...");
+    let frame_sander = Sender::<Ofdm>::new(&audio);
+    info!("Activating audio...");
     audio.activate();
 
-    let duration = (actual_sequence_bytes * 8).div_ceil(15000) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    test_data
+        .chunks(Ofdm::PREFERED_PAYLOAD_BYTES)
+        .for_each(|chunk| {
+            frame_sander.send(&chunk);
+        });
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
-
-    println!("Reading test data from {:?}", root_dir);
+    info!("Press enter to stop sending data...");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
 }
 
 #[test]
@@ -45,22 +43,20 @@ fn part1_ck1_receiver() {
 
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_OUTPUT_FILE);
+    info!("Writing test data to {:?}", file_path);
 
-    let received_output = Receiver::<Ofdm>::register(&audio);
-
-    println!("Activating audio...");
-    audio.activate();
-
-    println!("Press enter to stop receiving data...");
+    info!("Press enter to start receiving data...");
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
+    let mut frame_receiver = Receiver::<Ofdm>::new(&audio);
+    info!("Activating audio...");
+    audio.activate();
 
-    let mut received_output = received_output.lock().unwrap();
-    let demodulated_data = &mut received_output.demodulated_data;
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
+    let frame_count = TEST_SEQUENCE_BYTES.div_ceil(Ofdm::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
     demodulated_data.truncate(TEST_SEQUENCE_BYTES);
 
     std::fs::write(file_path.clone(), demodulated_data).unwrap();

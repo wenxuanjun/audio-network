@@ -1,60 +1,66 @@
+use crossbeam_channel::{unbounded, Receiver as ChannelReceiver};
 use jack::ProcessScope;
-use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
 
 use crate::audio::{Audio, AudioPorts};
 use crate::frame::{FrameDetector, PreambleSequence};
 use crate::modem::Modem;
 use crate::number::FP;
 
-#[derive(Default)]
-pub struct ReceiverOutput {
-    pub recorded_data: Vec<f32>,
-    pub demodulated_data: Vec<u8>,
-}
-
 pub struct Receiver<M> {
-    modem: PhantomData<M>,
+    modem: M,
+    sample_receiver: ChannelReceiver<f32>,
+    pub recorded_data: Vec<f32>,
+    frame_detector: FrameDetector,
 }
 
 impl<M> Receiver<M>
 where
     M: Modem + Sync + Send + 'static,
 {
-    pub fn register(audio: &'static Audio) -> Arc<Mutex<ReceiverOutput>> {
-        let sample_rate = audio.sample_rate.borrow().unwrap();
+    pub fn new(audio: &'static Audio) -> Self {
+        let (sample_sender, sample_receiver) = unbounded();
 
-        let modem = <M as Modem>::new(sample_rate);
+        let capture_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
+            ports.capture.as_slice(&ps).iter().for_each(|&sample| {
+                sample_sender.send(sample).unwrap();
+            });
+        };
+
+        audio.register(Box::new(capture_callback));
+        info!("Capture demodulated data registered!");
+
+        let sample_rate = audio.sample_rate.get().unwrap();
+        let modem = M::new(sample_rate);
 
         let payload_capacity = {
-            let payload_bytes = <M as Modem>::PREFERED_PAYLOAD_BYTES;
+            let payload_bytes = M::PREFERED_PAYLOAD_BYTES;
             let empty_frame = modem.modulate(&vec![0; payload_bytes]);
             empty_frame.len()
         };
 
         let preamble = PreambleSequence::<M>::new(sample_rate);
-        let mut frame_detector = FrameDetector::new(preamble, payload_capacity);
+        let frame_detector = FrameDetector::new(preamble, payload_capacity);
 
-        let received_output = Arc::new(Mutex::new(ReceiverOutput::default()));
-        let received_output_clone = received_output.clone();
+        let recorded_data = Vec::new();
 
-        let capture_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
-            let mut received_output = received_output_clone.lock().unwrap();
+        Self {
+            modem,
+            sample_receiver,
+            recorded_data,
+            frame_detector,
+        }
+    }
 
-            ports.capture.as_slice(&ps).iter().for_each(|&sample| {
-                received_output.recorded_data.push(sample);
+    pub fn recv(&mut self) -> Vec<u8> {
+        loop {
+            let sample = self.sample_receiver.recv().unwrap();
+            self.recorded_data.push(sample);
 
-                if let Some(frame) = frame_detector.update(FP::from(sample)) {
-                    let demodulated_frame = modem.demodulate(frame);
-                    println!("Demodulated frame: {:?}", demodulated_frame);
-                    received_output.demodulated_data.extend(demodulated_frame);
-                }
-            });
-        };
-
-        audio.register(Box::new(capture_callback));
-        println!("Capture demodulated data registered!");
-
-        received_output
+            if let Some(frame) = self.frame_detector.update(FP::from(sample)) {
+                let demodulated_frame = self.modem.demodulate(frame);
+                debug!("Demodulated frame: {:?}", demodulated_frame);
+                return demodulated_frame;
+            }
+        }
     }
 }

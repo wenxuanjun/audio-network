@@ -11,8 +11,8 @@ pub trait Modem {
     const PREAMBLE_FREQUENCY_RANGE: (f32, f32);
 
     fn new(sample_rate: usize) -> Self;
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP>;
-    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8>;
+    fn modulate(&self, bytes: &[u8]) -> Vec<FP>;
+    fn demodulate(&self, samples: &[FP]) -> Vec<u8>;
 }
 
 pub struct BitByteConverter;

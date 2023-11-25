@@ -1,5 +1,5 @@
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use jack::{AsyncClient, ClientOptions, Error};
@@ -16,9 +16,9 @@ const CLIENT_NAME_PREFIX: &str = "AcousticNetwork";
 pub struct Audio {
     client: RefCell<Option<Client>>,
     ports: Mutex<Option<AudioPorts>>,
-    pub timetick: AtomicU64,
+    pub timetick: AtomicUsize,
     active_client: RefCell<Option<AsyncClientCallback>>,
-    pub sample_rate: RefCell<Option<usize>>,
+    pub sample_rate: Cell<Option<usize>>,
     callbacks: Mutex<Vec<AudioCallback>>,
 }
 
@@ -38,9 +38,9 @@ impl Audio {
         let audio = Audio {
             client: RefCell::new(None),
             ports: Mutex::new(None),
-            timetick: AtomicU64::new(0),
+            timetick: AtomicUsize::new(0),
             active_client: RefCell::new(None),
-            sample_rate: RefCell::new(None),
+            sample_rate: Cell::new(None),
             callbacks: Mutex::new(Vec::new()),
         };
 
@@ -67,7 +67,7 @@ impl Audio {
         };
 
         *self.ports.lock().unwrap() = Some(ports);
-        *self.sample_rate.borrow_mut() = Some(sample_rate);
+        self.sample_rate.set(Some(sample_rate));
         self.timetick.store(0, Ordering::Relaxed);
 
         Ok(())
@@ -96,7 +96,7 @@ impl Audio {
                 callback(&mut ports.as_mut().unwrap(), ps);
             }
 
-            timetick.fetch_add(buffer_size as u64, Ordering::Relaxed);
+            timetick.fetch_add(buffer_size as usize, Ordering::Relaxed);
             Control::Continue
         };
 

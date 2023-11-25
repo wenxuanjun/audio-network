@@ -9,3 +9,13 @@ resolver = "2"
 lto = true
 opt-level = 3
 strip = "symbols"
+
+[workspace.dependencies.nolog]
+version = "1.0.19"
+features = [
+    "info",
+    "release",
+    "sep_colon",
+    "indent_ignore_all",
+    "location_style_classic"
+]

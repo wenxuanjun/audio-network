@@ -1,61 +1,61 @@
-use std::marker::PhantomData;
+use crossbeam_channel::{unbounded, Sender as ChannelSender};
+use jack::ProcessScope;
 
 use super::WARMUP_SEQUENCE;
-use crate::audio::{Audio, AudioPacket, CreateCallback};
+use crate::audio::{Audio, AudioPorts};
 use crate::frame::PreambleSequence;
 use crate::modem::Modem;
 use crate::number::FP;
 
 pub struct Sender<M> {
-    modem: PhantomData<M>,
+    modem: M,
+    sample_sender: ChannelSender<f32>,
+    preamble: Vec<FP>,
 }
 
-impl<M: Modem> Sender<M> {
-    pub fn register(audio: &'static Audio, data: &Vec<u8>) -> usize {
-        let sample_rate = audio.sample_rate.borrow().unwrap();
-        let sample_buffer = AudioPacket::create_buffer(0);
+impl<M> Sender<M>
+where
+    M: Modem + Sync + Send + 'static,
+{
+    pub fn new(audio: &'static Audio) -> Self {
+        let (sample_sender, sample_receiver) = unbounded();
 
-        let modem = <M as Modem>::new(sample_rate);
-        let payload_bytes = <M as Modem>::PREFERED_PAYLOAD_BYTES;
-        let preamble = PreambleSequence::<M>::new(sample_rate);
-
-        let actual_sequence_bytes = {
-            let unit_payload_bytes = <M as Modem>::PREFERED_PAYLOAD_BYTES;
-            let extra_bytes = unit_payload_bytes - data.len() % unit_payload_bytes;
-            data.len() + extra_bytes % unit_payload_bytes
+        let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
+            for sample in ports.playback.as_mut_slice(&ps) {
+                *sample = sample_receiver.recv().unwrap_or(0.0)
+            }
         };
 
-        let mut data = data.clone();
-        data.resize(actual_sequence_bytes, 0);
+        audio.register(Box::new(playback_callback));
+        info!("Playback modulated data registered!");
 
-        sample_buffer.write_chunk(
-            &modem
-                .modulate(&WARMUP_SEQUENCE)
-                .iter()
-                .map(|sample| FP::into(*sample))
-                .collect::<Vec<f32>>(),
-        );
+        let sample_rate = audio.sample_rate.get().unwrap();
+        let modem = M::new(sample_rate);
+        let preamble = PreambleSequence::<M>::new(sample_rate);
 
-        data.chunks(payload_bytes).for_each(|frame| {
-            sample_buffer.write_chunk(
-                &preamble
-                    .iter()
-                    .map(|sample| FP::into(*sample))
-                    .collect::<Vec<f32>>(),
-            );
-            sample_buffer.write_chunk(
-                &modem
-                    .modulate(&frame.to_vec())
-                    .iter()
-                    .map(|sample| FP::into(*sample))
-                    .collect::<Vec<f32>>(),
-            );
-        });
+        for &sample in modem.modulate(&WARMUP_SEQUENCE).iter() {
+            sample_sender.send(FP::into(sample)).unwrap();
+        }
 
-        let play_callback = CreateCallback::playback(sample_buffer, &audio.timetick);
-        audio.register(play_callback);
-        println!("Playback modulated data registered!");
+        Self {
+            modem,
+            sample_sender,
+            preamble,
+        }
+    }
 
-        actual_sequence_bytes
+    pub fn send(&self, data: &[u8]) {
+        let data = {
+            let mut data = data.to_vec();
+            data.resize(M::PREFERED_PAYLOAD_BYTES, 0);
+            data
+        };
+
+        self.preamble
+            .iter()
+            .chain(self.modem.modulate(&data).iter())
+            .for_each(|&sample| {
+                self.sample_sender.send(FP::into(sample)).unwrap();
+            });
     }
 }

@@ -2,15 +2,17 @@ use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
 use proj1_acoustic_link::frame::PreambleSequence;
-use proj1_acoustic_link::modem::{BitByteConverter, Ofdm, Psk};
+use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk};
 use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
 use proj1_acoustic_link::number::FP;
 
-const TEST_EXTRA_WAITING: usize = 1;
 const TEST_SEQUENCE_BYTES: usize = 1250;
 
 const TEST_INPUT_FILE: &str = "INPUT.txt";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
+
+#[macro_use]
+extern crate nolog;
 
 #[test]
 fn part3_ck1_generate() {
@@ -35,7 +37,7 @@ fn part3_ck1_sender() {
 
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_INPUT_FILE);
-    println!("Reading test data from {:?}", root_dir);
+    info!("Reading test data from {:?}", file_path);
 
     let test_data_bits = std::fs::read_to_string(file_path.clone())
         .unwrap()
@@ -45,23 +47,19 @@ fn part3_ck1_sender() {
 
     let test_data = BitByteConverter::bits_to_bytes(&test_data_bits);
 
-    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &test_data);
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
-
-    println!("Press enter to start sending data...");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    println!("Activating audio...");
+    let frame_sander = Sender::<Psk>::new(&audio);
+    info!("Activating audio...");
     audio.activate();
 
-    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    test_data
+        .chunks(Psk::PREFERED_PAYLOAD_BYTES)
+        .for_each(|chunk| {
+            frame_sander.send(&chunk);
+        });
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
-
-    println!("Reading test data from {:?}", root_dir);
+    info!("Press enter to stop sending data...");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
 }
 
 #[test]
@@ -70,25 +68,23 @@ fn part3_ck1_receiver() {
 
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_OUTPUT_FILE);
+    info!("Writing test data to {:?}", file_path);
 
-    let received_output = Receiver::<Psk>::register(&audio);
-
-    println!("Activating audio...");
-    audio.activate();
-
-    println!("Press enter to stop receiving data...");
+    info!("Press enter to start receiving data...");
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
+    let mut frame_receiver = Receiver::<Psk>::new(&audio);
+    info!("Activating audio...");
+    audio.activate();
 
-    let mut received_output = received_output.lock().unwrap();
-    let demodulated_data = &mut received_output.demodulated_data;
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
+    let frame_count = TEST_SEQUENCE_BYTES.div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
     demodulated_data.truncate(TEST_SEQUENCE_BYTES);
 
-    let demodulated_data = BitByteConverter::bytes_to_bits(demodulated_data)
+    let demodulated_data = BitByteConverter::bytes_to_bits(&demodulated_data)
         .iter()
         .map(|&x| x.to_string())
         .collect::<String>();
@@ -99,36 +95,39 @@ fn part3_ck1_receiver() {
 #[test]
 fn part3_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
-    let sample_rate = audio.sample_rate.borrow().unwrap();
 
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>())
         .collect();
 
-    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &test_data);
-    let received_output = Receiver::<Psk>::register(&audio);
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
+    let frame_sander = Sender::<Psk>::new(&audio);
+    let mut frame_receiver = Receiver::<Psk>::new(&audio);
 
-    println!("Activating audio...");
+    let test_data_clone = test_data.clone();
+    std::thread::spawn(move || {
+        test_data_clone
+            .chunks(Psk::PREFERED_PAYLOAD_BYTES)
+            .for_each(|chunk| {
+                frame_sander.send(&chunk);
+            });
+    });
+
+    info!("Activating audio...");
     audio.activate();
 
-    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    let frame_count = test_data.len().div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
+    demodulated_data.truncate(test_data.len());
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
+    info!("Demodulated data bytes: {:?}", demodulated_data.len());
+    count_error(&test_data, &demodulated_data);
 
-    let mut received_output = received_output.lock().unwrap();
-
-    let demodulated_data = &mut received_output.demodulated_data;
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
-    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
-
-    count_error(&test_data, demodulated_data);
-
-    let preamble = PreambleSequence::new(sample_rate);
-    let correlation_test = correlate(&received_output.recorded_data, &preamble);
-    plot_process_result("correlation.py", &correlation_test);
+    let sample_rate = audio.sample_rate.get().unwrap();
+    let preamble = PreambleSequence::<Psk>::new(sample_rate);
+    let correlation_test = correlate(&frame_receiver.recorded_data, &preamble);
+    plot_process_result(&correlation_test);
 }
 
 #[test]
@@ -140,75 +139,86 @@ fn part4_ck1_selfcheck() {
         .collect();
 
     let encoded_data = ErrorCorrector::encode(&test_data);
-    let origin_encoded_length = encoded_data.len();
 
-    let actual_sequence_bytes = Sender::<Psk>::register(&audio, &encoded_data);
-    let received_output = Receiver::<Psk>::register(&audio);
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
+    let frame_sander = Sender::<Psk>::new(&audio);
+    let mut frame_receiver = Receiver::<Psk>::new(&audio);
+
+    let encoded_data_clone = encoded_data.clone();
+    std::thread::spawn(move || {
+        encoded_data_clone
+            .chunks(Psk::PREFERED_PAYLOAD_BYTES)
+            .for_each(|chunk| {
+                frame_sander.send(&chunk);
+            });
+    });
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = (actual_sequence_bytes * 8).div_ceil(1250) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    let frame_count = encoded_data.len().div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
+    demodulated_data.truncate(encoded_data.len());
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
+    info!("Demodulated data bytes: {:?}", demodulated_data.len());
+    count_error(&encoded_data, &demodulated_data);
 
-    let mut received_output = received_output.lock().unwrap();
-    let demodulated_data = &mut received_output.demodulated_data;
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
-    count_error(&encoded_data, demodulated_data);
-
-    demodulated_data.truncate(origin_encoded_length);
-    let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
-    println!("Decoded data length: {:?}", decoded_data.len());
-
-    decoded_data.truncate(TEST_SEQUENCE_BYTES);
+    let decoded_data = ErrorCorrector::decode(&demodulated_data);
+    info!("Decoded data length: {:?}", decoded_data.len());
     count_error(&test_data, &decoded_data);
 }
 
 #[test]
 fn part5_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
-    let sample_rate = audio.sample_rate.borrow().unwrap();
 
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
         .map(|_| rand::random::<u8>())
         .collect();
 
-    let encoded_data = ErrorCorrector::encode(&test_data);
-    let origin_encoded_length = encoded_data.len();
+    info!("Test data length: {:?}", test_data.len());
 
-    let actual_sequence_bytes = Sender::<Ofdm>::register(&audio, &encoded_data);
-    let received_output = Receiver::<Ofdm>::register(&audio);
-    println!("Actual sequence bytes: {:?}", actual_sequence_bytes);
+    let encoded_data = ErrorCorrector::encode(&test_data);
+
+    info!("Encoded data length: {:?}", encoded_data.len());
+
+    let frame_sander = Sender::<Ofdm>::new(&audio);
+    let mut frame_receiver = Receiver::<Ofdm>::new(&audio);
 
     println!("Activating audio...");
     audio.activate();
 
-    let duration = ((encoded_data.len() * 8).div_ceil(1250)) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    let encoded_data_clone = encoded_data.clone();
+    std::thread::spawn(move || {
+        encoded_data_clone
+            .chunks(Ofdm::PREFERED_PAYLOAD_BYTES)
+            .for_each(|chunk| {
+                frame_sander.send(&chunk);
+            });
+    });
 
-    println!("Deactivating audio...");
+    let frame_count = encoded_data.len().div_ceil(Ofdm::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
+    info!("Demodulated data length: {:?}", demodulated_data.len());
+    demodulated_data.truncate(encoded_data.len());
+
+    info!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    let mut received_output = received_output.lock().unwrap();
-    let demodulated_data = &mut received_output.demodulated_data;
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
+    info!("Demodulated data bytes: {:?}", demodulated_data.len());
+    count_error(&encoded_data, &demodulated_data);
 
-    count_error(&encoded_data, demodulated_data);
-
-    demodulated_data.truncate(origin_encoded_length);
-    let mut decoded_data = ErrorCorrector::decode(&demodulated_data);
-    println!("Decoded data length: {:?}", decoded_data.len());
-
-    decoded_data.truncate(TEST_SEQUENCE_BYTES);
+    let decoded_data = ErrorCorrector::decode(&demodulated_data);
+    info!("Decoded data length: {:?}", decoded_data.len());
     count_error(&test_data, &decoded_data);
 
-    let preamble = PreambleSequence::new(sample_rate);
-    let correlation_test = correlate(&received_output.recorded_data, &preamble);
-    plot_process_result("correlation.py", &correlation_test);
+    let sample_rate = audio.sample_rate.get().unwrap();
+    let preamble = PreambleSequence::<Ofdm>::new(sample_rate);
+    let correlation_test = correlate(&frame_receiver.recorded_data, &preamble);
+    plot_process_result(&correlation_test);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
@@ -227,20 +237,21 @@ fn count_error(origin: &[u8], result: &[u8]) {
     );
 }
 
-fn plot_process_result(file_name: &str, data: &[f32]) {
-    use std::{fs::File, io::Write};
+fn plot_process_result(data: &[f32]) {
+    use temp_dir::TempDir;
 
-    let mut file = File::create(file_name).unwrap();
+    let directory = TempDir::new().unwrap();
+    let file_path = directory.child("plot.py");
 
     let header = "import numpy as np
     \nimport matplotlib.pyplot as plt
     \ny = [";
 
-    file.write_all(header.as_bytes()).unwrap();
+    std::fs::write(&file_path, header).unwrap();
 
     for item in data {
         let formatted_item = format!("{},", item);
-        file.write_all(formatted_item.as_bytes()).unwrap();
+        std::fs::write(&file_path, formatted_item.as_bytes()).unwrap();
     }
 
     let footer = "]
@@ -252,14 +263,14 @@ fn plot_process_result(file_name: &str, data: &[f32]) {
     \nplt.grid(True)
     \nplt.show()";
 
-    file.write_all(footer.as_bytes()).unwrap();
+    std::fs::write(&file_path, footer.as_bytes()).unwrap();
+
+    info!("File path: {:?}", file_path);
 
     std::process::Command::new("python")
-        .arg(file_name)
+        .arg(file_path)
         .output()
         .expect("failed to execute process");
-
-    std::fs::remove_file(file_name).unwrap();
 }
 
 fn correlate(data: &[f32], kernel: &[FP]) -> Vec<f32> {

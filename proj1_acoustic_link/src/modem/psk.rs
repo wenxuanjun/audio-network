@@ -29,7 +29,7 @@ impl Modem for Psk {
         }
     }
 
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP> {
+    fn modulate(&self, bytes: &[u8]) -> Vec<FP> {
         BitByteConverter::bytes_to_bits(bytes)
             .chunks(BIT_PER_SYMBOL)
             .flat_map(|chunk| {
@@ -46,7 +46,7 @@ impl Modem for Psk {
             .collect()
     }
 
-    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8> {
+    fn demodulate(&self, samples: &[FP]) -> Vec<u8> {
         let chunk_length = self.sample_rate / SYMBOL_RATE;
 
         let bits = samples
@@ -143,7 +143,7 @@ mod tests {
     fn test_psk() {
         let data = (0..TEST_SEQUENCE_BYTES)
             .map(|_| rand::random::<u8>())
-            .collect();
+            .collect::<Vec<_>>();
 
         let psk = Psk::new(SAMPLE_RATE);
 

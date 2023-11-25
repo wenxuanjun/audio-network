@@ -1,4 +1,6 @@
 use jack::ProcessScope;
+use std::sync::atomic::Ordering;
+
 use proj1_acoustic_link::audio::AudioDeactivateFlag;
 use proj1_acoustic_link::audio::{Audio, AudioPorts};
 
@@ -7,10 +9,10 @@ fn part2_ck1() {
     let audio = Audio::new().unwrap();
 
     let timetick = &audio.timetick;
-    let sample_rate = audio.sample_rate.borrow().unwrap();
+    let sample_rate = audio.sample_rate.get().unwrap();
 
     let sine_wave_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
-        let timetick = *timetick.read().unwrap() as f32;
+        let timetick = timetick.load(Ordering::Relaxed) as f32;
         let buffer = ports.playback.as_mut_slice(&ps);
         for (index, sample) in buffer.iter_mut().enumerate() {
             let current_time = (index as f32 + timetick) / sample_rate as f32;

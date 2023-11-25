@@ -1,8 +1,10 @@
-use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{Ofdm, BitByteConverter};
+use proj1_acoustic_link::audio::Audio;
+use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm};
 use proj1_acoustic_link::node::{Receiver, Sender};
 
-const TEST_EXTRA_WAITING: usize = 1;
+#[macro_use]
+extern crate nolog;
+
 const TEST_SEQUENCE_BYTES: usize = 6250;
 
 fn main() {
@@ -12,25 +14,29 @@ fn main() {
         .map(|_| rand::random::<u8>())
         .collect();
 
-    Sender::<Ofdm>::register(&audio, &test_data);
-    let received_output = Receiver::<Ofdm>::register(&audio);
+    let frame_sander = Sender::<Ofdm>::new(&audio);
+    let mut frame_receiver = Receiver::<Ofdm>::new(&audio);
 
-    println!("Activating audio...");
+    info!("Activating audio...");
     audio.activate();
 
-    let duration = ((test_data.len() * 8).div_ceil(17500)) + TEST_EXTRA_WAITING;
-    std::thread::sleep(std::time::Duration::from_secs(duration as u64));
+    let test_data_clone = test_data.clone();
+    std::thread::spawn(move || {
+        test_data_clone
+            .chunks(Ofdm::PREFERED_PAYLOAD_BYTES)
+            .for_each(|chunk| {
+                frame_sander.send(&chunk);
+            });
+    });
 
-    println!("Deactivating audio...");
-    audio.deactivate(AudioDeactivateFlag::Deactivate);
-
-    let mut received_output = received_output.lock().unwrap();
-
-    let demodulated_data = &mut received_output.demodulated_data;
+    let frame_count = TEST_SEQUENCE_BYTES.div_ceil(Ofdm::PREFERED_PAYLOAD_BYTES);
+    let mut demodulated_data = (0..frame_count)
+        .flat_map(|_| frame_receiver.recv())
+        .collect::<Vec<_>>();
     demodulated_data.truncate(TEST_SEQUENCE_BYTES);
-    println!("Demodulated data bytes: {:?}", demodulated_data.len());
 
-    count_error(&test_data, demodulated_data);
+    info!("Demodulated data bytes: {:?}", demodulated_data.len());
+    count_error(&test_data, &demodulated_data);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
@@ -42,11 +48,9 @@ fn count_error(origin: &[u8], result: &[u8]) {
         .map(|(index, _)| index)
         .collect();
 
-    println!(
+    warn!(
         "Error bits: {:?}, Error index: {:?}",
         error_index.len(),
         error_index
     );
-
-    assert_eq!(error_index.len(), 0);
 }

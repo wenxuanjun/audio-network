@@ -13,6 +13,9 @@ rand = "0.8.5"
 reed-solomon = "0.2.1"
 rustfft = "6.1.0"
 slice-deque = "0.3.0"
+crossbeam-channel = "0.5"
+temp-dir = "0.1.11"
+nolog = { workspace = true }
 
 [dependencies.fixed]
 version = "1.24.0"

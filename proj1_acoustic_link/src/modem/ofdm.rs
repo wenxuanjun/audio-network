@@ -5,9 +5,9 @@ use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const BIT_PER_SYMBOL: usize = 20;
+        const BIT_PER_SYMBOL: usize = 16;
         const DATA_SAMPLES: usize = 64;
-        const START_SUB_CARRIER_INDEX: usize = 1;
+        const START_SUB_CARRIER_INDEX: usize = 4;
         const CYCLIC_PREFIX_SAMPLES: usize = 0;
     } else {
         const BIT_PER_SYMBOL: usize = 4;
@@ -32,7 +32,7 @@ pub struct Ofdm {
 impl Modem for Ofdm {
     cfg_if::cfg_if! {
         if #[cfg(feature = "cable_link")] {
-            const PREFERED_PAYLOAD_BYTES: usize = 120;
+            const PREFERED_PAYLOAD_BYTES: usize = 96;
             const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (1600.0, 3200.0);
         } else {
             const PREFERED_PAYLOAD_BYTES: usize = 48;
@@ -57,7 +57,7 @@ impl Modem for Ofdm {
         }
     }
 
-    fn modulate(&self, bytes: &Vec<u8>) -> Vec<FP> {
+    fn modulate(&self, bytes: &[u8]) -> Vec<FP> {
         assert!(
             bytes.len() % PACKET_DATA_BYTES == 0,
             "Bad data length: {}, can only modulate N * {} bytes per time!",
@@ -71,7 +71,7 @@ impl Modem for Ofdm {
             .collect()
     }
 
-    fn demodulate(&self, samples: &Vec<FP>) -> Vec<u8> {
+    fn demodulate(&self, samples: &[FP]) -> Vec<u8> {
         assert!(
             samples.len() % PACKET_SAMPLES == 0,
             "Bad data length: {}, can only demodulate N * {} samples per time!",
@@ -171,7 +171,9 @@ mod tests {
 
     #[test]
     fn test_ofdm() {
-        let data = (0..TEST_SEQUENCE_BYTES).map(|index| index as u8).collect();
+        let data = (0..TEST_SEQUENCE_BYTES)
+            .map(|index| index as u8)
+            .collect::<Vec<_>>();
 
         let ofdm = Ofdm::new(SAMPLE_RATE);
 
