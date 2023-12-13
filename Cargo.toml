@@ -10,6 +10,10 @@ lto = true
 opt-level = 3
 strip = "symbols"
 
+[workspace.dependencies]
+rand = "0.8.5"
+crossbeam-channel = "0.5"
+
 [workspace.dependencies.nolog]
 version = "1.0.19"
 features = [

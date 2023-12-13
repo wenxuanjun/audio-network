@@ -5,10 +5,14 @@ edition = "2021"
 
 [dependencies]
 crc = "3.0.1"
-rand = "0.8.5"
-crossbeam-channel = "0.5"
-nolog = { workspace = true }
+rand.workspace = true
+nolog.workspace = true
+crossbeam-channel.workspace = true
 
 [dependencies.proj1_acoustic_link]
 path = "../proj1_acoustic_link"
 features = ["cable_link"]
+
+[features]
+default = ["csma_ack"]
+csma_ack = []

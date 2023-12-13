@@ -5,9 +5,9 @@ use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const BIT_PER_SYMBOL: usize = 16;
+        const BIT_PER_SYMBOL: usize = 20;
         const DATA_SAMPLES: usize = 64;
-        const START_SUB_CARRIER_INDEX: usize = 4;
+        const START_SUB_CARRIER_INDEX: usize = 2;
         const CYCLIC_PREFIX_SAMPLES: usize = 0;
     } else {
         const BIT_PER_SYMBOL: usize = 4;
@@ -32,7 +32,7 @@ pub struct Ofdm {
 impl Modem for Ofdm {
     cfg_if::cfg_if! {
         if #[cfg(feature = "cable_link")] {
-            const PREFERED_PAYLOAD_BYTES: usize = 96;
+            const PREFERED_PAYLOAD_BYTES: usize = 240;
             const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (1600.0, 3200.0);
         } else {
             const PREFERED_PAYLOAD_BYTES: usize = 48;

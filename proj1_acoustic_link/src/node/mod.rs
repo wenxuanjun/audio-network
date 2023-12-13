@@ -9,7 +9,7 @@ pub use corrector::ErrorCorrector;
 
 static WARMUP_SEQUENCE: Lazy<Vec<u8>> = Lazy::new(|| {
     #[cfg(feature = "cable_link")]
-    const WARMUP_SEQUENCE_BYTES: usize = 96;
+    const WARMUP_SEQUENCE_BYTES: usize = 240;
     #[cfg(not(feature = "cable_link"))]
     const WARMUP_SEQUENCE_BYTES: usize = 24;
 

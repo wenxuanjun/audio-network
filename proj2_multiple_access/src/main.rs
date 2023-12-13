@@ -15,7 +15,7 @@ fn main() {
         .collect();
 
     let frame_sander = Sender::<Ofdm>::new(&audio);
-    let mut frame_receiver = Receiver::<Ofdm>::new(&audio);
+    let frame_receiver = Receiver::<Ofdm>::new(&audio);
 
     info!("Activating audio...");
     audio.activate();

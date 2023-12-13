@@ -20,22 +20,22 @@ where
     pub fn new(audio: &'static Audio) -> Self {
         let (sample_sender, sample_receiver) = unbounded();
 
+        let sample_rate = audio.sample_rate.get().unwrap();
+        let modem = <M as Modem>::new(sample_rate);
+        let preamble = PreambleSequence::<M>::new(sample_rate);
+
         let playback_callback = move |ports: &mut AudioPorts, ps: &ProcessScope| {
             for sample in ports.playback.as_mut_slice(&ps) {
-                *sample = sample_receiver.recv().unwrap_or(0.0)
+                *sample = sample_receiver.try_recv().unwrap_or(0.0)
             }
         };
 
         audio.register(Box::new(playback_callback));
         info!("Playback modulated data registered!");
 
-        let sample_rate = audio.sample_rate.get().unwrap();
-        let modem = M::new(sample_rate);
-        let preamble = PreambleSequence::<M>::new(sample_rate);
-
-        for &sample in modem.modulate(&WARMUP_SEQUENCE).iter() {
+        modem.modulate(&WARMUP_SEQUENCE).iter().for_each(|&sample| {
             sample_sender.send(FP::into(sample)).unwrap();
-        }
+        });
 
         Self {
             modem,

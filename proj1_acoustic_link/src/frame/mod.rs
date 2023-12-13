@@ -1,12 +1,12 @@
-use slice_deque::SliceDeque;
 use crate::number::FP;
+use slice_deque::SliceDeque;
 
 mod preamble;
 pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const DETECT_THRETSHOLD_MIN: f32 = 50.0;
+        const DETECT_THRETSHOLD_MIN: f32 = 80.0;
         const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
     } else {
         const DETECT_THRETSHOLD_MIN: f32 = 20.0;
@@ -40,22 +40,22 @@ impl FrameDetector {
         }
     }
 
-    fn get_correlation(&self) -> FP {
-        self.detect_buffer
-            .iter()
-            .zip(self.preamble.iter())
-            .map(|(a, b)| *a * *b)
-            .sum::<FP>()
-    }
-
     pub fn update(&mut self, sample: FP) -> Option<&Vec<FP>> {
         if self.detect_buffer.len() == PREAMBLE_LENGTH {
             self.detect_buffer.pop_front();
         }
         self.detect_buffer.push_back(sample);
 
+        let get_correlation = || -> FP {
+            self.detect_buffer
+                .iter()
+                .zip(self.preamble.iter())
+                .map(|(a, b)| *a * *b)
+                .sum::<FP>()
+        };
+
         if self.current_state == FrameDetectorState::MaybePayload {
-            if self.get_correlation() > *self.correlation_buffer.back().unwrap() {
+            if get_correlation() > *self.correlation_buffer.back().unwrap() {
                 self.current_state = FrameDetectorState::Waiting;
             } else {
                 self.current_state = FrameDetectorState::Payload;
@@ -64,19 +64,16 @@ impl FrameDetector {
 
         match self.current_state {
             FrameDetectorState::Waiting => {
-                let correlation = self.get_correlation();
+                let correlation = get_correlation();
 
                 if self.correlation_buffer.len() == PREAMBLE_LENGTH {
                     self.correlation_buffer.pop_front();
                 }
                 self.correlation_buffer.push_back(correlation);
 
-                let average_correlation = self
-                    .correlation_buffer
-                    .iter()
-                    .map(|&x| x.abs())
-                    .sum::<FP>()
-                    / FP::from(PREAMBLE_LENGTH);
+                let average_correlation =
+                    self.correlation_buffer.iter().map(|&x| x.abs()).sum::<FP>()
+                        / FP::from(PREAMBLE_LENGTH);
 
                 if correlation > FP::from(DETECT_THRETSHOLD_MIN)
                     && correlation > average_correlation * FP::from(DETECT_THRETSHOLD_RATIO)
