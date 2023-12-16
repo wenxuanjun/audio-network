@@ -3,6 +3,7 @@ members = [
     "proj1_acoustic_link",
     "proj2_multiple_access",
 ]
+default-members = ["proj1_acoustic_link"]
 resolver = "2"
 
 [profile.release]

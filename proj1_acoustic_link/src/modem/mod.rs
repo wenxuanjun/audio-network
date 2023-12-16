@@ -6,7 +6,11 @@ pub use psk::Psk;
 mod ofdm;
 pub use ofdm::Ofdm;
 
+mod xbyb;
+pub use xbyb::BitWave;
+
 pub trait Modem {
+    const MIN_MODULATE_BYTES: usize;
     const PREFERED_PAYLOAD_BYTES: usize;
     const PREAMBLE_FREQUENCY_RANGE: (f32, f32);
 

@@ -32,13 +32,14 @@ pub struct Ofdm {
 impl Modem for Ofdm {
     cfg_if::cfg_if! {
         if #[cfg(feature = "cable_link")] {
-            const PREFERED_PAYLOAD_BYTES: usize = 240;
+            const PREFERED_PAYLOAD_BYTES: usize = 120;
             const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (1600.0, 3200.0);
         } else {
             const PREFERED_PAYLOAD_BYTES: usize = 48;
             const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (3600.0, 5200.0);
         }
     }
+    const MIN_MODULATE_BYTES: usize = PACKET_DATA_BYTES;
 
     fn new(_: usize) -> Self {
         let ffts = [
@@ -166,8 +167,7 @@ impl Ofdm {
 mod tests {
     use super::*;
 
-    const SAMPLE_RATE: usize = 48000;
-    const TEST_SEQUENCE_BYTES: usize = 1920;
+    const TEST_SEQUENCE_BYTES: usize = 360;
 
     #[test]
     fn test_ofdm() {
@@ -175,7 +175,7 @@ mod tests {
             .map(|index| index as u8)
             .collect::<Vec<_>>();
 
-        let ofdm = Ofdm::new(SAMPLE_RATE);
+        let ofdm = Ofdm::new(0);
 
         let mut modulated = ofdm.modulate(&data);
         println!("Modulated data samples: {:?}", modulated.len());

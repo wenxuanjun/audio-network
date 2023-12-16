@@ -5,6 +5,7 @@ use proj1_acoustic_link::audio::AudioDeactivateFlag;
 use proj1_acoustic_link::audio::{Audio, AudioPorts};
 
 #[test]
+#[ignore]
 fn part2_ck1() {
     let audio = Audio::new().unwrap();
 

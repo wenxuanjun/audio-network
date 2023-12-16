@@ -1,8 +1,6 @@
+use super::PREAMBLE_LENGTH;
 use crate::number::FP;
 use slice_deque::SliceDeque;
-
-mod preamble;
-pub use preamble::{PreambleSequence, PREAMBLE_LENGTH};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
@@ -15,27 +13,27 @@ cfg_if::cfg_if! {
 }
 
 #[derive(PartialEq)]
-pub enum FrameDetectorState {
+pub enum PacketDetectorState {
     Payload,
     MaybePayload,
     Waiting,
 }
 
-pub struct FrameDetector {
+pub struct PacketDetector {
     preamble: Vec<FP>,
     detect_buffer: SliceDeque<FP>,
     payload_buffer: Vec<FP>,
-    current_state: FrameDetectorState,
+    current_state: PacketDetectorState,
     correlation_buffer: SliceDeque<FP>,
 }
 
-impl FrameDetector {
+impl PacketDetector {
     pub fn new(preamble: Vec<FP>, payload_capacity: usize) -> Self {
         Self {
             preamble,
             detect_buffer: SliceDeque::with_capacity(PREAMBLE_LENGTH),
             payload_buffer: Vec::with_capacity(payload_capacity),
-            current_state: FrameDetectorState::Waiting,
+            current_state: PacketDetectorState::Waiting,
             correlation_buffer: SliceDeque::with_capacity(PREAMBLE_LENGTH),
         }
     }
@@ -54,16 +52,16 @@ impl FrameDetector {
                 .sum::<FP>()
         };
 
-        if self.current_state == FrameDetectorState::MaybePayload {
+        if self.current_state == PacketDetectorState::MaybePayload {
             if get_correlation() > *self.correlation_buffer.back().unwrap() {
-                self.current_state = FrameDetectorState::Waiting;
+                self.current_state = PacketDetectorState::Waiting;
             } else {
-                self.current_state = FrameDetectorState::Payload;
+                self.current_state = PacketDetectorState::Payload;
             }
         }
 
         match self.current_state {
-            FrameDetectorState::Waiting => {
+            PacketDetectorState::Waiting => {
                 let correlation = get_correlation();
 
                 if self.correlation_buffer.len() == PREAMBLE_LENGTH {
@@ -78,23 +76,23 @@ impl FrameDetector {
                 if correlation > FP::from(DETECT_THRETSHOLD_MIN)
                     && correlation > average_correlation * FP::from(DETECT_THRETSHOLD_RATIO)
                 {
-                    self.current_state = FrameDetectorState::MaybePayload;
+                    self.current_state = PacketDetectorState::MaybePayload;
                     self.payload_buffer.clear();
                 }
 
                 None
             }
-            FrameDetectorState::Payload => {
+            PacketDetectorState::Payload => {
                 self.payload_buffer.push(sample);
 
                 if self.payload_buffer.len() == self.payload_buffer.capacity() {
-                    self.current_state = FrameDetectorState::Waiting;
+                    self.current_state = PacketDetectorState::Waiting;
                     return Some(&self.payload_buffer);
                 }
 
                 None
             }
-            FrameDetectorState::MaybePayload => unreachable!(),
+            PacketDetectorState::MaybePayload => unreachable!(),
         }
     }
 }

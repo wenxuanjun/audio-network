@@ -1,4 +1,4 @@
-use crossbeam_channel::{after, select, tick, unbounded};
+use crossbeam_channel::{after, select, tick, unbounded, bounded};
 use crossbeam_channel::{Receiver as ChannelReceiver, Sender as ChannelSender};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -7,11 +7,10 @@ use std::time::Duration;
 use crate::corrupted::{CrcWrapper, CRC_BYTES};
 use proj1_acoustic_link::audio::Audio;
 use proj1_acoustic_link::modem::{Modem, Ofdm};
-use proj1_acoustic_link::node::{Receiver, Sender};
+use proj1_acoustic_link::node::{Receiver, AveragePower, Sender};
 
 const ACK_MAGIC_NUMBER: [u8; 6] = [0x11, 0x45, 0x14, 0x19, 0x19, 0x81];
 const ACK_PAYLOAD_BYTES: usize = ACK_MAGIC_NUMBER.len();
-
 const MAC_ADDRESS_BYTES: usize = 2;
 const SEQUENCE_BYTES: usize = std::mem::size_of::<u32>();
 const DATA_FRAME_BYTES: usize = Ofdm::PREFERED_PAYLOAD_BYTES - CRC_BYTES;
@@ -33,17 +32,17 @@ struct TerminalChannelPair<T> {
 
 impl<T> TerminalChannelPair<T> {
     fn new() -> Self {
-        let (sender, receiver) = unbounded();
+        let (sender, receiver) = bounded(0);
         Self { sender, receiver }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct TerminalDataFrame {
-    source: MacAddress,
-    destination: MacAddress,
     pub sequence: u32,
     pub payload: Vec<u8>,
+    source: MacAddress,
+    destination: MacAddress,
 }
 
 impl TerminalDataFrame {
@@ -55,7 +54,7 @@ impl TerminalDataFrame {
             source,
             destination,
             sequence,
-            payload: payload.to_vec(),
+            payload,
         }
     }
 
@@ -172,99 +171,105 @@ impl Terminal {
 
     pub fn activate(&self) {
         self.running_state.store(true, Ordering::Relaxed);
+        self.active_sender();
+        self.active_receiver();
+    }
 
-        let mac_address = self.mac_address.clone();
+    fn wait_colliding(average_power: AveragePower) {
+
+        loop {
+            if average_power.colliding() {
+                std::thread::sleep(Duration::from_millis(rand::random::<u64>() % 20));
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn active_sender(&self) {
         let sender_node = self.sender_node.clone();
         let running_state = self.running_state.clone();
         let sender_channel_receiver = self.sender_channel.receiver.clone();
         let received_acks = self.received_acks.clone();
 
-        let average_power = self.receiver_node.average_power.clone();
+        //let average_power = self.receiver_node.average_power.clone();
 
-        std::thread::spawn(move || {
-            loop {
-                if !running_state.load(Ordering::Relaxed) {
-                    break;
-                }
-
-                info!("Looping to send data...");
-
-                let channel_data = sender_channel_receiver.recv().unwrap();
-
-                match channel_data {
-                    SenderChannelData::Data(data_frame) => {
-                        warn!("Sending data: {:?}", data_frame);
-
-                        let encoded_frame = CrcWrapper::encode(&data_frame.to_bytes());
-
-                        loop {
-                            if *average_power.lock().unwrap() < 2.5e-4 {
-                                break;
-                            } else {
-                                std::thread::sleep(Duration::from_millis(rand::random::<u64>() % 20));
-                            }
-                        }
-                        
-                        sender_node.send(&encoded_frame);
-
-                        let sender_node = sender_node.clone();
-                        let running_state = running_state.clone();
-                        let received_acks = received_acks.clone();
-                        let average_power = average_power.clone();
-
-                        std::thread::spawn(move || {
-                            let ticker = tick(Duration::from_millis(24550));
-                            let timeout = after(Duration::from_millis(5000000));
-
-                            loop {
-                                select! {
-                                    recv(ticker) -> _ => {
-                                        info!("Try find ACK for {:?}", data_frame.sequence);
-
-                                        let ack_index = received_acks.lock().unwrap().iter().position(|&x| x == data_frame.sequence);
-
-                                        if ack_index.is_some() {
-                                            warn!("Have get ACK: {:?}, I am {:?}", data_frame.sequence, mac_address);
-                                            break;
-                                        } else {
-                                            info!("Resending sequence: {:?}, data: {:?}", data_frame.sequence, data_frame);
-
-                                            loop {
-                                                if *average_power.lock().unwrap() < 2.5e-4 {
-                                                    break;
-                                                } else {
-                                                    std::thread::sleep(Duration::from_millis(rand::random::<u64>() % 20));
-                                                }
-                                            }
-
-                                            warn!("[Suc] Resending data!");
-
-                                            sender_node.send(&encoded_frame);
-                                            continue;
-                                        }
-
-
-                                    },
-                                    recv(timeout) -> _ => {
-                                        error!("Maximum retries for {:?} reached!", data_frame.sequence);
-                                        running_state.store(false, Ordering::Relaxed);
-                                        break;
-                                    },
-                                }
-                            }
-                        });
-                    }
-                    SenderChannelData::Ack(data_frame) => {
-                        let frame_sequence = data_frame.sequence;
-                        warn!("Sending ACK: {:?}, {:?}", frame_sequence, data_frame);
-
-                        let encoded_frame = CrcWrapper::encode(&data_frame.to_bytes());
-                        sender_node.send(&encoded_frame);
-                    }
-                };
+        std::thread::spawn(move || loop {
+            if !running_state.load(Ordering::Relaxed) {
+                break;
             }
-        });
 
+            info!("Looping to send data...");
+
+            let channel_data = sender_channel_receiver.recv().unwrap();
+
+            match channel_data {
+                SenderChannelData::Data(data_frame) => {
+                    let encoded_frame = CrcWrapper::encode(&data_frame.to_bytes());
+
+                    /*loop {
+                        if average_power.colliding() {
+                            std::thread::sleep(Duration::from_millis(rand::random::<u64>() % 20));
+                        } else {
+                            break;
+                        }
+                    }*/
+
+                    warn!("Sending data frame: {:?}", data_frame.sequence);
+                    sender_node.send(&encoded_frame);
+
+                    let sender_node = sender_node.clone();
+                    let running_state = running_state.clone();
+                    let received_acks = received_acks.clone();
+                    //let average_power = average_power.clone();
+
+                    let ticker = tick(Duration::from_millis(600));
+                    let timeout = after(Duration::from_millis(2000));
+
+                    loop {
+                        select! {
+                            recv(ticker) -> _ => {
+                                if received_acks
+                                    .lock()
+                                    .unwrap()
+                                    .iter()
+                                    .position(|&x| x == data_frame.sequence)
+                                    .is_some()
+                                {
+                                    break;
+                                }
+                            
+                                /*loop {
+                                    if average_power.colliding() {
+                                        std::thread::sleep(Duration::from_millis(
+                                            rand::random::<u64>() % 20,
+                                        ));
+                                    } else {
+                                        break;
+                                    }
+                                }*/
+
+                                warn!("Resending data frame: {:?}", data_frame.sequence);
+                                sender_node.send(&encoded_frame);
+                            },
+                            recv(timeout) -> _ => {
+                                error!("Maximum retries for {:?} reached!", data_frame.sequence);
+                                running_state.store(false, Ordering::Relaxed);
+                                break;
+                            },
+                        }
+                    }
+                }
+                SenderChannelData::Ack(data_frame) => {
+                    let encoded_frame = CrcWrapper::encode(&data_frame.to_bytes());
+                    sender_node.send(&encoded_frame);
+                }
+            };
+        });
+    }
+
+    fn active_receiver(&self) {
+        let mac_address = self.mac_address.clone();
         let receiver_node = self.receiver_node.clone();
         let running_state = self.running_state.clone();
         let sender_channel_sender = self.sender_channel.sender.clone();
@@ -272,46 +277,43 @@ impl Terminal {
         let received_acks = self.received_acks.clone();
         let received_sequences = self.received_sequences.clone();
 
-        std::thread::spawn(move || {
-            loop {
-                if !running_state.load(Ordering::Relaxed) {
-                    break;
-                }
+        std::thread::spawn(move || loop {
+            if !running_state.load(Ordering::Relaxed) {
+                break;
+            }
 
-                info!("Looping to receive data...");
-                let received = receiver_node.recv();
+            let received = receiver_node.recv();
 
-                if let Some(received) = CrcWrapper::decode(&received) {
-                    let data_frame = TerminalDataFrame::from_bytes(&received).unwrap();
+            if let Some(received) = CrcWrapper::decode(&received) {
+                let data_frame = TerminalDataFrame::from_bytes(&received).unwrap();
 
-                    if data_frame.destination == mac_address {
-                        if AckPayload::validate(&data_frame) {
-                            warn!("Received ACK: {:?}", data_frame.sequence);
-                            received_acks.lock().unwrap().push(data_frame.sequence);
-                        } else {
-                            warn!("Received REAL data: {:?}", data_frame);
-                            let ack_payload = AckPayload::create();
+                if data_frame.destination == mac_address {
+                    if AckPayload::validate(&data_frame) {
+                        received_acks.lock().unwrap().push(data_frame.sequence);
+                    } else {
+                        let ack_payload = AckPayload::create();
 
-                            let ack_data_frame = TerminalDataFrame::new(
-                                mac_address,
-                                data_frame.source,
-                                data_frame.sequence,
-                                &ack_payload,
-                            );
+                        let ack_data_frame = TerminalDataFrame::new(
+                            mac_address,
+                            data_frame.source,
+                            data_frame.sequence,
+                            &ack_payload,
+                        );
 
-                            if !received_sequences
-                                .lock()
-                                .unwrap()
-                                .contains(&data_frame.sequence)
-                            {
-                                receiver_channel_sender.send(data_frame.clone()).unwrap();
-                                received_sequences.lock().unwrap().push(data_frame.sequence);
-                            }
-
-                            sender_channel_sender
-                                .send(SenderChannelData::Ack(ack_data_frame))
-                                .unwrap();
+                        if !received_sequences
+                            .lock()
+                            .unwrap()
+                            .contains(&data_frame.sequence)
+                        {
+                            receiver_channel_sender.send(data_frame.clone()).unwrap();
+                            received_sequences.lock().unwrap().push(data_frame.sequence);
                         }
+
+                        warn!("Want to send ack of: {:?}", ack_data_frame.sequence);
+
+                        sender_channel_sender
+                            .send(SenderChannelData::Ack(ack_data_frame))
+                            .unwrap();
                     }
                 }
             }

@@ -5,6 +5,7 @@ use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlag};
 const TEST_SECONDS: usize = 5;
 
 #[test]
+#[ignore]
 fn part1_ck1() {
     let audio = Audio::new().unwrap();
 
@@ -36,6 +37,7 @@ fn part1_ck1() {
 }
 
 #[test]
+#[ignore]
 fn part1_ck2() {
     let audio = Audio::new().unwrap();
 

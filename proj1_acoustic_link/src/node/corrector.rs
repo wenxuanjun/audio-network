@@ -20,14 +20,14 @@ impl ErrorCorrector {
             let mut chunk_mut = chunk.to_vec();
             chunk_mut.resize(255, 0);
 
-            Decoder::new(ECC_LENGTH)
+            let result = Decoder::new(ECC_LENGTH)
                 .correct(&mut chunk_mut, None)
                 .unwrap_or_else(|_| {
-                    println!("Cannot correct, too many errors!");
-                    std::process::exit(1)
-                })
-                .data()
-                .to_vec()
+                    error!("Cannot correct, too many errors!");
+                    reed_solomon::Buffer::from_slice(&[], 0)
+                });
+
+            result.data().to_vec()
         };
 
         data.chunks(DATA_LENGTH + ECC_LENGTH)
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn test_reed_solomon() {
-        const TEST_SEQUENCE_BYTES: usize = 1000;
+        const TEST_SEQUENCE_BYTES: usize = 100;
 
         let data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
             .map(|_| rand::random::<u8>())

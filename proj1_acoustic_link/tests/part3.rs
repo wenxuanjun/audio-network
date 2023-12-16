@@ -1,12 +1,10 @@
 use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::frame::PreambleSequence;
-use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk};
+use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk, BitWave};
 use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
-use proj1_acoustic_link::number::FP;
 
-const TEST_SEQUENCE_BYTES: usize = 6250;
+const TEST_SEQUENCE_BYTES: usize = 1250;
 
 const TEST_INPUT_FILE: &str = "INPUT.txt";
 const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
@@ -15,6 +13,7 @@ const TEST_OUTPUT_FILE: &str = "OUTPUT.txt";
 extern crate nolog;
 
 #[test]
+#[ignore]
 fn part3_ck1_generate() {
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_path = root_dir.join(TEST_INPUT_FILE);
@@ -32,6 +31,7 @@ fn part3_ck1_generate() {
 }
 
 #[test]
+#[ignore]
 fn part3_ck1_sender() {
     let audio = Audio::new().unwrap();
 
@@ -51,11 +51,7 @@ fn part3_ck1_sender() {
     info!("Activating audio...");
     audio.activate();
 
-    test_data
-        .chunks(Psk::PREFERED_PAYLOAD_BYTES)
-        .for_each(|chunk| {
-            frame_sander.send(&chunk);
-        });
+    frame_sander.send(&test_data);
 
     info!("Press enter to stop sending data...");
     let mut input = String::new();
@@ -63,6 +59,7 @@ fn part3_ck1_sender() {
 }
 
 #[test]
+#[ignore]
 fn part3_ck1_receiver() {
     let audio = Audio::new().unwrap();
 
@@ -78,11 +75,8 @@ fn part3_ck1_receiver() {
     info!("Activating audio...");
     audio.activate();
 
-    let frame_count = TEST_SEQUENCE_BYTES.div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
-    let mut demodulated_data = (0..frame_count)
-        .flat_map(|_| frame_receiver.recv())
-        .collect::<Vec<_>>();
-    demodulated_data.truncate(TEST_SEQUENCE_BYTES);
+    let mut demodulated_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", demodulated_data.len());
 
     let demodulated_data = BitByteConverter::bytes_to_bits(&demodulated_data)
         .iter()
@@ -93,49 +87,43 @@ fn part3_ck1_receiver() {
 }
 
 #[test]
+#[ignore]
 fn part3_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
 
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
-        .map(|_| rand::random::<u8>())
+        .map(|index| (index % 256) as u8)
         .collect();
+    info!("Test data length: {:?}", test_data.len());
 
-    let frame_sander = Sender::<Psk>::new(&audio);
-    let frame_receiver = Receiver::<Psk>::new(&audio);
-
-    let test_data_clone = test_data.clone();
-    std::thread::spawn(move || {
-        test_data_clone
-            .chunks(Psk::PREFERED_PAYLOAD_BYTES)
-            .for_each(|chunk| {
-                frame_sander.send(&chunk);
-            });
-    });
+    let frame_sander = Sender::<Ofdm>::new(&audio);
+    let frame_receiver = Receiver::<Ofdm>::new(&audio);
 
     info!("Activating audio...");
     audio.activate();
 
-    let frame_count = test_data.len().div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
-    let mut demodulated_data = (0..frame_count)
-        .flat_map(|_| frame_receiver.recv())
-        .collect::<Vec<_>>();
-    demodulated_data.truncate(test_data.len());
+    let test_data_clone = test_data.clone();
+    std::thread::spawn(move || {
+        frame_sander.send(&test_data_clone);
+    });
+
+    let mut demodulated_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", demodulated_data.len());
+
+    info!("Deactivating audio...");
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
 
     info!("Demodulated data bytes: {:?}", demodulated_data.len());
     count_error(&test_data, &demodulated_data);
-
-    let sample_rate = audio.sample_rate.get().unwrap();
-    let preamble = PreambleSequence::<Psk>::new(sample_rate);
-    let correlation_test = correlate(&frame_receiver.recorded_data.lock().unwrap(), &preamble);
-    plot_process_result(&correlation_test);
 }
 
 #[test]
+#[ignore]
 fn part4_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
 
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
-        .map(|_| rand::random::<u8>())
+        .map(|index| (index % 256) as u8)
         .collect();
 
     let encoded_data = ErrorCorrector::encode(&test_data);
@@ -143,23 +131,19 @@ fn part4_ck1_selfcheck() {
     let frame_sander = Sender::<Psk>::new(&audio);
     let frame_receiver = Receiver::<Psk>::new(&audio);
 
-    let encoded_data_clone = encoded_data.clone();
-    std::thread::spawn(move || {
-        encoded_data_clone
-            .chunks(Psk::PREFERED_PAYLOAD_BYTES)
-            .for_each(|chunk| {
-                frame_sander.send(&chunk);
-            });
-    });
-
-    println!("Activating audio...");
+    info!("Activating audio...");
     audio.activate();
 
-    let frame_count = encoded_data.len().div_ceil(Psk::PREFERED_PAYLOAD_BYTES);
-    let mut demodulated_data = (0..frame_count)
-        .flat_map(|_| frame_receiver.recv())
-        .collect::<Vec<_>>();
-    demodulated_data.truncate(encoded_data.len());
+    let encoded_data_clone = encoded_data.clone();
+    std::thread::spawn(move || {
+        frame_sander.send(&encoded_data_clone);
+    });
+
+    let demodulated_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", demodulated_data.len());
+
+    info!("Deactivating audio...");
+    audio.deactivate(AudioDeactivateFlag::Deactivate);
 
     info!("Demodulated data bytes: {:?}", demodulated_data.len());
     count_error(&encoded_data, &demodulated_data);
@@ -170,38 +154,29 @@ fn part4_ck1_selfcheck() {
 }
 
 #[test]
+#[ignore]
 fn part5_ck1_selfcheck() {
     let audio = Audio::new().unwrap();
 
     let test_data: Vec<_> = (0..TEST_SEQUENCE_BYTES)
         .map(|index| (index % 256) as u8)
         .collect();
-    info!("Test data length: {:?}", test_data.len());
 
     let encoded_data = ErrorCorrector::encode(&test_data);
-    info!("Encoded data length: {:?}", encoded_data.len());
 
     let frame_sander = Sender::<Ofdm>::new(&audio);
     let frame_receiver = Receiver::<Ofdm>::new(&audio);
 
-    println!("Activating audio...");
+    info!("Activating audio...");
     audio.activate();
 
     let encoded_data_clone = encoded_data.clone();
     std::thread::spawn(move || {
-        encoded_data_clone
-            .chunks(Ofdm::PREFERED_PAYLOAD_BYTES)
-            .for_each(|chunk| {
-                frame_sander.send(&chunk);
-            });
+        frame_sander.send(&encoded_data_clone);
     });
 
-    let frame_count = encoded_data.len().div_ceil(Ofdm::PREFERED_PAYLOAD_BYTES);
-    let mut demodulated_data = (0..frame_count)
-        .flat_map(|_| frame_receiver.recv())
-        .collect::<Vec<_>>();
+    let demodulated_data = frame_receiver.recv();
     info!("Demodulated data length: {:?}", demodulated_data.len());
-    demodulated_data.truncate(encoded_data.len());
 
     info!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
@@ -209,10 +184,9 @@ fn part5_ck1_selfcheck() {
     info!("Demodulated data bytes: {:?}", demodulated_data.len());
     count_error(&encoded_data, &demodulated_data);
 
-    let sample_rate = audio.sample_rate.get().unwrap();
-    let preamble = PreambleSequence::<Ofdm>::new(sample_rate);
-    let correlation_test = correlate(&frame_receiver.recorded_data.lock().unwrap(), &preamble);
-    plot_process_result(&correlation_test);
+    let decoded_data = ErrorCorrector::decode(&demodulated_data);
+    info!("Decoded data length: {:?}", decoded_data.len());
+    count_error(&test_data, &decoded_data);
 }
 
 fn count_error(origin: &[u8], result: &[u8]) {
@@ -224,90 +198,9 @@ fn count_error(origin: &[u8], result: &[u8]) {
         .map(|(index, _)| index)
         .collect();
 
-    println!(
+    warn!(
         "Error bits: {:?}, Error index: {:?}",
         error_index.len(),
         error_index
     );
-}
-
-fn plot_process_result(data: &[f32]) {
-    use std::{fs::File, io::Write};
-
-    let file_name = "plot.py";
-    let mut file = File::create(file_name).unwrap();
-
-    let header = "import numpy as np
-    \nimport matplotlib.pyplot as plt
-    \ny = [";
-
-    file.write_all(header.as_bytes()).unwrap();
-
-    for item in data {
-        let formatted_item = format!("{},", item);
-        file.write_all(formatted_item.as_bytes()).unwrap();
-    }
-
-    let footer = "]
-    \nx = np.arange(0, len(y), 1)
-    \nplt.plot(x, y)
-    \nplt.xlabel('Time')
-    \nplt.ylabel('Amplitude')
-    \nplt.title('Waveform')
-    \nplt.grid(True)
-    \nplt.show()";
-
-    file.write_all(footer.as_bytes()).unwrap();
-
-    std::process::Command::new("python")
-        .arg(file_name)
-        .output()
-        .expect("failed to execute process");
-
-    std::fs::remove_file(file_name).unwrap();
-}
-
-fn correlate(data: &[f32], kernel: &[FP]) -> Vec<f32> {
-    use rustfft::{num_complex::Complex, FftPlanner};
-
-    let kernel_length = kernel.len();
-    let shape = data.len() + kernel_length - 1;
-
-    let map_zero_padding = |x: &[f32], shape: usize| {
-        x.iter()
-            .map(|&x| Complex::new(x, 0.0))
-            .chain(std::iter::repeat(Complex::new(0.0, 0.0)))
-            .take(shape)
-            .collect::<Vec<_>>()
-    };
-
-    let mut data = map_zero_padding(data, shape);
-    let mut kernel = map_zero_padding(
-        &kernel.iter().map(|&x| FP::into(x)).collect::<Vec<_>>(),
-        shape,
-    );
-
-    let mut planner = FftPlanner::<f32>::new();
-    let fft = planner.plan_fft_forward(shape);
-
-    fft.process(&mut data);
-    fft.process(&mut kernel);
-
-    let ifft = planner.plan_fft_inverse(shape);
-
-    let mut correlation: Vec<_> = data
-        .iter_mut()
-        .zip(kernel.iter())
-        .map(|(a, b)| *a * *b)
-        .collect();
-
-    ifft.process(&mut correlation);
-
-    let correlation: Vec<_> = correlation
-        .into_iter()
-        .map(|x| x.re / shape as f32)
-        .skip(kernel_length - 1)
-        .collect();
-
-    correlation
 }

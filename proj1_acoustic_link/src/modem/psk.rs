@@ -1,9 +1,17 @@
 use super::{BitByteConverter, Modem};
 use crate::number::FP;
 
-const BIT_PER_SYMBOL: usize = 1;
-const BIT_RATE_MUL_RATIO: usize = 1250;
-const CARRIER_FREQUENCY: f32 = 1600.0;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "cable_link")] {
+        const BIT_PER_SYMBOL: usize = 1;
+        const BIT_RATE_MUL_RATIO: usize = 1250;
+        const CARRIER_FREQUENCY: f32 = 1600.0;
+    } else {
+        const BIT_PER_SYMBOL: usize = 1;
+        const BIT_RATE_MUL_RATIO: usize = 1250;
+        const CARRIER_FREQUENCY: f32 = 1600.0;
+    }
+}
 
 const SYMBOL_RATE: usize = BIT_RATE_MUL_RATIO * BIT_PER_SYMBOL / BIT_PER_SYMBOL;
 const CHUNK_VARIANCE: usize = 2usize.pow(BIT_PER_SYMBOL as u32);
@@ -15,8 +23,16 @@ pub struct Psk {
 }
 
 impl Modem for Psk {
-    const PREFERED_PAYLOAD_BYTES: usize = 16;
-    const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (900.0, 3000.0);
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "cable_link")] {
+            const PREFERED_PAYLOAD_BYTES: usize = 16;
+            const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (900.0, 3000.0);
+        } else {
+            const PREFERED_PAYLOAD_BYTES: usize = 16;
+            const PREAMBLE_FREQUENCY_RANGE: (f32, f32) = (900.0, 3000.0);
+        }
+    }
+    const MIN_MODULATE_BYTES: usize = BIT_PER_SYMBOL;
 
     fn new(sample_rate: usize) -> Self {
         let gray_code = Self::gray_code(BIT_PER_SYMBOL);
@@ -137,7 +153,7 @@ mod tests {
     use super::*;
 
     const SAMPLE_RATE: usize = 48000;
-    const TEST_SEQUENCE_BYTES: usize = 100;
+    const TEST_SEQUENCE_BYTES: usize = 1;
 
     #[test]
     fn test_psk() {

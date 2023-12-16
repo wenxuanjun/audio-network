@@ -6,6 +6,6 @@ extern crate nolog;
 
 pub mod audio;
 pub mod number;
-pub mod frame;
+pub mod packet;
 pub mod modem;
 pub mod node;

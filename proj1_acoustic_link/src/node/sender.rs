@@ -1,16 +1,16 @@
 use crossbeam_channel::{unbounded, Sender as ChannelSender};
 use jack::ProcessScope;
 
-use super::WARMUP_SEQUENCE;
+use super::{FrameManager, WARMUP_SEQUENCE};
 use crate::audio::{Audio, AudioPorts};
-use crate::frame::PreambleSequence;
 use crate::modem::Modem;
 use crate::number::FP;
+use crate::packet::PreambleSequence;
 
 pub struct Sender<M> {
     modem: M,
-    sample_sender: ChannelSender<f32>,
     preamble: Vec<FP>,
+    sample_sender: ChannelSender<f32>,
 }
 
 impl<M> Sender<M>
@@ -39,23 +39,21 @@ where
 
         Self {
             modem,
-            sample_sender,
             preamble,
+            sample_sender,
         }
     }
 
-    pub fn send(&self, data: &[u8]) {
-        let data = {
-            let mut data = data.to_vec();
-            data.resize(M::PREFERED_PAYLOAD_BYTES, 0);
-            data
-        };
+    pub fn send(&self, frame: &[u8]) {
+        let packets = FrameManager::<M>::construct(&frame);
 
-        self.preamble
-            .iter()
-            .chain(self.modem.modulate(&data).iter())
-            .for_each(|&sample| {
-                self.sample_sender.send(FP::into(sample)).unwrap();
-            });
+        packets.iter().for_each(|packet| {
+            self.preamble
+                .iter()
+                .chain(self.modem.modulate(&packet).iter())
+                .for_each(|&sample| {
+                    self.sample_sender.send(FP::into(sample)).unwrap();
+                });
+        });
     }
 }
