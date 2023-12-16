@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use proj2_multiple_access::terminal::{Terminal, VALID_PACKET_BYTES};
 
@@ -61,50 +61,10 @@ fn main() {
             .filter(|&(x, y)| x != y)
             .count();
 
-        //let recorded = terminal1.receiver_node.recorded_data.lock().unwrap();
-
-        //plot_process_result(&recorded);
-        
         warn!("[1] Result len: {}, diff: {}", result.len(), diff);
         warn!("[1] Result: {:?}", result);
     });
 
     thread1.join().unwrap();
     thread2.join().unwrap();
-}
-
-fn plot_process_result(data: &[f32]) {
-    use std::{fs::File, io::Write};
-
-    let file_name = "plot.py";
-    let mut file = File::create(file_name).unwrap();
-
-    let header = "import numpy as np
-    \nimport matplotlib.pyplot as plt
-    \ny = [";
-
-    file.write_all(header.as_bytes()).unwrap();
-
-    for item in data {
-        let formatted_item = format!("{},", item);
-        file.write_all(formatted_item.as_bytes()).unwrap();
-    }
-
-    let footer = "]
-    \nx = np.arange(0, len(y), 1)
-    \nplt.plot(x, y)
-    \nplt.xlabel('Time')
-    \nplt.ylabel('Amplitude')
-    \nplt.title('Waveform')
-    \nplt.grid(True)
-    \nplt.show()";
-
-    file.write_all(footer.as_bytes()).unwrap();
-
-    std::process::Command::new("python")
-        .arg(file_name)
-        .output()
-        .expect("failed to execute process");
-
-    std::fs::remove_file(file_name).unwrap();
 }

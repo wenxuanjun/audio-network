@@ -1,4 +1,4 @@
-use crossbeam_channel::{after, select, tick, unbounded, bounded};
+use crossbeam_channel::{after, select, tick, bounded};
 use crossbeam_channel::{Receiver as ChannelReceiver, Sender as ChannelSender};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::corrupted::{CrcWrapper, CRC_BYTES};
 use proj1_acoustic_link::audio::Audio;
 use proj1_acoustic_link::modem::{Modem, Ofdm};
-use proj1_acoustic_link::node::{Receiver, AveragePower, Sender};
+use proj1_acoustic_link::node::{Receiver, Sender};
 
 const ACK_MAGIC_NUMBER: [u8; 6] = [0x11, 0x45, 0x14, 0x19, 0x19, 0x81];
 const ACK_PAYLOAD_BYTES: usize = ACK_MAGIC_NUMBER.len();
@@ -173,17 +173,6 @@ impl Terminal {
         self.running_state.store(true, Ordering::Relaxed);
         self.active_sender();
         self.active_receiver();
-    }
-
-    fn wait_colliding(average_power: AveragePower) {
-
-        loop {
-            if average_power.colliding() {
-                std::thread::sleep(Duration::from_millis(rand::random::<u64>() % 20));
-            } else {
-                break;
-            }
-        }
     }
 
     fn active_sender(&self) {

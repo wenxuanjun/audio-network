@@ -26,7 +26,7 @@ fn tune_detector() {
         frame_sander.send(&test_data);
     });
 
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     let demodulated_data = frame_receiver.recv();

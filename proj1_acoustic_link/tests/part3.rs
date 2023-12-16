@@ -48,7 +48,7 @@ fn part3_ck1_sender() {
     let test_data = BitByteConverter::bits_to_bytes(&test_data_bits);
 
     let frame_sander = Sender::<Psk>::new(&audio);
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     frame_sander.send(&test_data);
@@ -72,18 +72,18 @@ fn part3_ck1_receiver() {
     std::io::stdin().read_line(&mut input).unwrap();
 
     let frame_receiver = Receiver::<Psk>::new(&audio);
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
-    let mut demodulated_data = frame_receiver.recv();
-    info!("Demodulated data length: {:?}", demodulated_data.len());
+    let mut frame_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", frame_data.len());
 
-    let demodulated_data = BitByteConverter::bytes_to_bits(&demodulated_data)
+    let frame_data = BitByteConverter::bytes_to_bits(&frame_data)
         .iter()
         .map(|&x| x.to_string())
         .collect::<String>();
 
-    std::fs::write(file_path.clone(), demodulated_data).unwrap();
+    std::fs::write(file_path.clone(), frame_data).unwrap();
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn part3_ck1_selfcheck() {
     let frame_sander = Sender::<Ofdm>::new(&audio);
     let frame_receiver = Receiver::<Ofdm>::new(&audio);
 
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     let test_data_clone = test_data.clone();
@@ -107,14 +107,14 @@ fn part3_ck1_selfcheck() {
         frame_sander.send(&test_data_clone);
     });
 
-    let mut demodulated_data = frame_receiver.recv();
-    info!("Demodulated data length: {:?}", demodulated_data.len());
+    let mut frame_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", frame_data.len());
 
     info!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    info!("Demodulated data bytes: {:?}", demodulated_data.len());
-    count_error(&test_data, &demodulated_data);
+    info!("Demodulated data bytes: {:?}", frame_data.len());
+    count_error(&test_data, &frame_data);
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn part4_ck1_selfcheck() {
     let frame_sander = Sender::<Psk>::new(&audio);
     let frame_receiver = Receiver::<Psk>::new(&audio);
 
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     let encoded_data_clone = encoded_data.clone();
@@ -139,16 +139,16 @@ fn part4_ck1_selfcheck() {
         frame_sander.send(&encoded_data_clone);
     });
 
-    let demodulated_data = frame_receiver.recv();
-    info!("Demodulated data length: {:?}", demodulated_data.len());
+    let frame_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", frame_data.len());
 
     info!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    info!("Demodulated data bytes: {:?}", demodulated_data.len());
-    count_error(&encoded_data, &demodulated_data);
+    info!("Demodulated data bytes: {:?}", frame_data.len());
+    count_error(&encoded_data, &frame_data);
 
-    let decoded_data = ErrorCorrector::decode(&demodulated_data);
+    let decoded_data = ErrorCorrector::decode(&frame_data);
     info!("Decoded data length: {:?}", decoded_data.len());
     count_error(&test_data, &decoded_data);
 }
@@ -167,7 +167,7 @@ fn part5_ck1_selfcheck() {
     let frame_sander = Sender::<Ofdm>::new(&audio);
     let frame_receiver = Receiver::<Ofdm>::new(&audio);
 
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     let encoded_data_clone = encoded_data.clone();
@@ -175,16 +175,16 @@ fn part5_ck1_selfcheck() {
         frame_sander.send(&encoded_data_clone);
     });
 
-    let demodulated_data = frame_receiver.recv();
-    info!("Demodulated data length: {:?}", demodulated_data.len());
+    let frame_data = frame_receiver.recv();
+    info!("Demodulated data length: {:?}", frame_data.len());
 
     info!("Deactivating audio...");
     audio.deactivate(AudioDeactivateFlag::Deactivate);
 
-    info!("Demodulated data bytes: {:?}", demodulated_data.len());
-    count_error(&encoded_data, &demodulated_data);
+    info!("Demodulated data bytes: {:?}", frame_data.len());
+    count_error(&encoded_data, &frame_data);
 
-    let decoded_data = ErrorCorrector::decode(&demodulated_data);
+    let decoded_data = ErrorCorrector::decode(&frame_data);
     info!("Decoded data length: {:?}", decoded_data.len());
     count_error(&test_data, &decoded_data);
 }

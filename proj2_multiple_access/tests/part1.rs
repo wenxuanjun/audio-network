@@ -23,7 +23,7 @@ fn part1_ck1_sender() {
     let test_data = std::fs::read(file_path.clone()).unwrap();
 
     let frame_sander = Sender::<Ofdm>::new(&audio);
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     test_data
@@ -50,7 +50,7 @@ fn part1_ck1_receiver() {
     std::io::stdin().read_line(&mut input).unwrap();
 
     let mut frame_receiver = Receiver::<Ofdm>::new(&audio);
-    info!("Activating audio...");
+    info!("Activating audio client...");
     audio.activate();
 
     let frame_count = TEST_SEQUENCE_BYTES.div_ceil(Ofdm::PREFERED_PAYLOAD_BYTES);

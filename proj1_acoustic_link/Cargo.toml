@@ -15,6 +15,7 @@ slice-deque = "0.3.0"
 temp-dir = "0.1.11"
 bitvec = "1.0.1"
 tunio = "0.3.0"
+argh = "0.1.10"
 rand.workspace = true
 nolog.workspace = true
 crossbeam-channel.workspace = true
