@@ -4,7 +4,7 @@ use slice_deque::SliceDeque;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const DETECT_THRETSHOLD_MIN: f32 = 80.0;
+        const DETECT_THRETSHOLD_MIN: f32 = 85.0;
         const DETECT_THRETSHOLD_RATIO: f32 = 5.0;
     } else {
         const DETECT_THRETSHOLD_MIN: f32 = 20.0;

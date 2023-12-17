@@ -1,6 +1,6 @@
 use proj1_acoustic_link::audio::Audio;
 use proj1_acoustic_link::packet::PreambleSequence;
-use proj1_acoustic_link::modem::{Modem, BitWave};
+use proj1_acoustic_link::modem::BitWave;
 use proj1_acoustic_link::node::{Receiver, Sender};
 use proj1_acoustic_link::number::FP;
 

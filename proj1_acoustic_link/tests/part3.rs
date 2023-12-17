@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{BitByteConverter, Modem, Ofdm, Psk, BitWave};
+use proj1_acoustic_link::modem::{BitByteConverter, Ofdm, Psk, BitWave};
 use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
 
 const TEST_SEQUENCE_BYTES: usize = 1250;
@@ -75,7 +75,7 @@ fn part3_ck1_receiver() {
     info!("Activating audio client...");
     audio.activate();
 
-    let mut frame_data = frame_receiver.recv();
+    let frame_data = frame_receiver.recv();
     info!("Demodulated data length: {:?}", frame_data.len());
 
     let frame_data = BitByteConverter::bytes_to_bits(&frame_data)
@@ -107,7 +107,7 @@ fn part3_ck1_selfcheck() {
         frame_sander.send(&test_data_clone);
     });
 
-    let mut frame_data = frame_receiver.recv();
+    let frame_data = frame_receiver.recv();
     info!("Demodulated data length: {:?}", frame_data.len());
 
     info!("Deactivating audio...");
@@ -164,8 +164,8 @@ fn part5_ck1_selfcheck() {
 
     let encoded_data = ErrorCorrector::encode(&test_data);
 
-    let frame_sander = Sender::<Ofdm>::new(&audio);
-    let frame_receiver = Receiver::<Ofdm>::new(&audio);
+    let frame_sander = Sender::<BitWave>::new(&audio);
+    let frame_receiver = Receiver::<BitWave>::new(&audio);
 
     info!("Activating audio client...");
     audio.activate();

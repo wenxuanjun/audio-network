@@ -66,10 +66,9 @@ where
                 self.buffer.extend(packet);
                 self.frame_length = u16::from_ne_bytes(frame_length.try_into().unwrap());
 
-                let packet_length = <M as Modem>::MIN_MODULATE_BYTES;
-                if (self.frame_length as usize) < packet_length {
-                    self.current_state = FrameManagerState::Waiting;
-
+                if (self.frame_length as usize + FRAME_PREAMBLE.len())
+                    <= <M as Modem>::MIN_MODULATE_BYTES
+                {
                     let result = self.buffer[..self.frame_length as usize].to_vec();
                     self.buffer.clear();
 
