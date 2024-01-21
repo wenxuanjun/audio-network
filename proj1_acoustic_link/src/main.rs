@@ -1,20 +1,18 @@
+
 use argh::FromArgs;
 use std::io::{Read, Write};
-use std::sync::{Arc, Mutex};
-use tunio::traits::{DriverT, InterfaceT};
-use tunio::{DefaultDriver, DefaultInterface, Layer};
 
 use proj1_acoustic_link::audio::Audio;
-use proj1_acoustic_link::modem::Ofdm;
+use proj1_acoustic_link::modem::BitWave;
 use proj1_acoustic_link::node::{Receiver, Sender};
 
-type TargetModem = Ofdm;
+type TargetModem = BitWave;
 
 #[macro_use]
 extern crate nolog;
 
 const DEFAULT_INFERFACE_NAME: &str = "anp0";
-const DEFAULT_IP_ADDRESS: &str = "11.45.14.19/24";
+const DEFAULT_IP_ADDRESS: &str = "11.45.14.19";
 
 #[derive(FromArgs)]
 #[argh(description = "AcousticLink Network adapter")]
@@ -33,22 +31,19 @@ struct Args {
 fn main() {
     let args: Args = argh::from_env();
 
-    let interface = {
-        let if_config = DefaultDriver::if_config_builder()
-            .name(args.name)
-            .layer(Layer::L2)
-            .build()
-            .unwrap();
-        let mut driver = DefaultDriver::new().unwrap();
-        let interface = DefaultInterface::new_up(&mut driver, if_config).unwrap();
-        Arc::new(Mutex::new(interface))
-    };
+    let (mut if_reader, mut if_writer) = {
+        let mut if_config = tun::Configuration::default();
 
-    interface
-        .lock()
-        .unwrap()
-        .handle()
-        .add_ip(args.address.parse().unwrap());
+        if_config
+            .name(args.name)
+            .address(args.address.parse::<std::net::Ipv4Addr>().unwrap())
+            .layer(tun::Layer::L2)
+            .up();
+
+        let device = tun::create(&if_config).unwrap();
+
+        device.split()
+    };
 
     let audio = Audio::new().unwrap();
 
@@ -58,11 +53,10 @@ fn main() {
     info!("Activating audio client...");
     audio.activate();
 
-    let interface_clone = interface.clone();
     std::thread::spawn(move || {
         let mut buf = vec![0u8; 4096];
         loop {
-            if let Ok(n) = interface_clone.lock().unwrap().read(buf.as_mut_slice()) {
+            if let Ok(n) = if_reader.read(buf.as_mut_slice()) {
                 buf.truncate(n);
                 info!("From interface: {:?}", buf);
                 frame_sander.send(&buf);
@@ -73,7 +67,7 @@ fn main() {
 
     std::thread::spawn(move || loop {
         let frame_data = frame_receiver.recv();
-        if let Ok(_) = interface.lock().unwrap().write(&frame_data) {
+        if let Ok(_) = if_writer.write(&frame_data) {
             info!("To interface: {:?}", frame_data);
         }
     });

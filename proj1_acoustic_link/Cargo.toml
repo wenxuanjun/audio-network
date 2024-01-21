@@ -14,11 +14,11 @@ rustfft = "6.1.0"
 slice-deque = "0.3.0"
 temp-dir = "0.1.11"
 bitvec = "1.0.1"
-tunio = "0.3.0"
 argh = "0.1.10"
 rand.workspace = true
 nolog.workspace = true
 crossbeam-channel.workspace = true
+futures = "0.3.30"
 
 [dependencies.fixed]
 version = "1.24.0"
@@ -27,6 +27,10 @@ optional = true
 [dependencies.cordic]
 version = "0.1.5"
 optional = true
+
+[dependencies.tun]
+version = "0.6.1"
+features = ["async"]
 
 [features]
 fixed_point = ["fixed", "cordic"]
