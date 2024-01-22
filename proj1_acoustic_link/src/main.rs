@@ -3,10 +3,10 @@ use ipnet::Ipv4Net;
 use std::io::{Read, Write};
 
 use proj1_acoustic_link::audio::Audio;
-use proj1_acoustic_link::modem::BitWave;
+use proj1_acoustic_link::modem::Ofdm;
 use proj1_acoustic_link::node::{Receiver, Sender};
 
-type TargetModem = BitWave;
+type TargetModem = Ofdm;
 
 #[macro_use]
 extern crate nolog;

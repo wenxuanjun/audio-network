@@ -5,7 +5,7 @@ use rustfft::{algorithm::Radix4, num_complex::Complex, Fft};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "cable_link")] {
-        const BIT_PER_SYMBOL: usize = 18;
+        const BIT_PER_SYMBOL: usize = 20;
         const DATA_SAMPLES: usize = 64;
         const START_SUB_CARRIER_INDEX: usize = 2;
         const CYCLIC_PREFIX_SAMPLES: usize = 0;

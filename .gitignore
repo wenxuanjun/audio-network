@@ -7,9 +7,6 @@
 # Allow test audio files
 !Sample.wav
 
-# Generated python plots
-*.py
-
 # Input and output files for testing
 INPUT.txt
 OUTPUT.txt
