@@ -1,5 +1,5 @@
-
 use argh::FromArgs;
+use ipnet::Ipv4Net;
 use std::io::{Read, Write};
 
 use proj1_acoustic_link::audio::Audio;
@@ -12,7 +12,7 @@ type TargetModem = BitWave;
 extern crate nolog;
 
 const DEFAULT_INFERFACE_NAME: &str = "anp0";
-const DEFAULT_IP_ADDRESS: &str = "11.45.14.19";
+const DEFAULT_IP_ADDRESS: &str = "11.45.14.19/24";
 
 #[derive(FromArgs)]
 #[argh(description = "AcousticLink Network adapter")]
@@ -23,7 +23,7 @@ struct Args {
     name: String,
 
     #[argh(option, short = 'a')]
-    #[argh(description = "the network IP address")]
+    #[argh(description = "the network IP network address")]
     #[argh(default = "DEFAULT_IP_ADDRESS.to_string()")]
     address: String,
 }
@@ -33,10 +33,12 @@ fn main() {
 
     let (mut if_reader, mut if_writer) = {
         let mut if_config = tun::Configuration::default();
+        let ip_network: Ipv4Net = args.address.parse().unwrap();
 
         if_config
             .name(args.name)
-            .address(args.address.parse::<std::net::Ipv4Addr>().unwrap())
+            .address(ip_network.addr())
+            .netmask(ip_network.netmask())
             .layer(tun::Layer::L2)
             .up();
 

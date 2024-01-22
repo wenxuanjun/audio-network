@@ -19,6 +19,7 @@ rand.workspace = true
 nolog.workspace = true
 crossbeam-channel.workspace = true
 futures = "0.3.30"
+ipnet = "2.9.0"
 
 [dependencies.fixed]
 version = "1.24.0"
