@@ -49,6 +49,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio_network"
+version = "0.1.0"
+dependencies = [
+ "argh",
+ "bitvec",
+ "cfg-if",
+ "cordic",
+ "crc",
+ "crossbeam-channel",
+ "fixed",
+ "futures",
+ "hound",
+ "ipnet",
+ "jack",
+ "nolog",
+ "num-traits",
+ "once_cell",
+ "rand",
+ "reed-solomon",
+ "rustfft",
+ "slice-deque",
+ "temp-dir",
+ "tun",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -532,42 +558,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2422ad645d89c99f8f3e6b88a9fdeca7fabeac836b1002371c4367c8f984aae"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "proj1_acoustic_link"
-version = "0.1.0"
-dependencies = [
- "argh",
- "bitvec",
- "cfg-if",
- "cordic",
- "crossbeam-channel",
- "fixed",
- "futures",
- "hound",
- "ipnet",
- "jack",
- "nolog",
- "num-traits",
- "once_cell",
- "rand",
- "reed-solomon",
- "rustfft",
- "slice-deque",
- "temp-dir",
- "tun",
-]
-
-[[package]]
-name = "proj2_multiple_access"
-version = "0.1.0"
-dependencies = [
- "crc",
- "crossbeam-channel",
- "nolog",
- "proj1_acoustic_link",
- "rand",
 ]
 
 [[package]]

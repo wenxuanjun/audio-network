@@ -1,6 +1,6 @@
 use std::time::Duration;
-use proj1_acoustic_link::audio::{Audio, CreateCallback};
-use proj1_acoustic_link::audio::{AudioPacket, AudioDeactivateFlag};
+use audio_network::audio::{Audio, CreateCallback};
+use audio_network::audio::{AudioPacket, AudioDeactivateFlag};
 
 const TEST_SECONDS: usize = 5;
 

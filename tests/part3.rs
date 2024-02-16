@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use proj1_acoustic_link::audio::{Audio, AudioDeactivateFlag};
-use proj1_acoustic_link::modem::{BitByteConverter, Ofdm, Psk, BitWave};
-use proj1_acoustic_link::node::{ErrorCorrector, Receiver, Sender};
+use audio_network::audio::{Audio, AudioDeactivateFlag};
+use audio_network::modem::{BitByteConverter, Ofdm, Psk, BitWave};
+use audio_network::node::{ErrorCorrector, Receiver, Sender};
 
 const TEST_SEQUENCE_BYTES: usize = 1250;
 

@@ -1,8 +1,8 @@
-use proj1_acoustic_link::audio::Audio;
-use proj1_acoustic_link::packet::PreambleSequence;
-use proj1_acoustic_link::modem::BitWave;
-use proj1_acoustic_link::node::{Receiver, Sender};
-use proj1_acoustic_link::number::FP;
+use audio_network::audio::Audio;
+use audio_network::packet::PreambleSequence;
+use audio_network::modem::BitWave;
+use audio_network::node::{Receiver, Sender};
+use audio_network::number::FP;
 
 const TEST_SEQUENCE_BYTES: usize = 500;
 type TargetModem = BitWave;

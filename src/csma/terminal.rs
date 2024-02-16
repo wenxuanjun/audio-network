@@ -5,9 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::corrupted::{CrcWrapper, CRC_BYTES};
-use proj1_acoustic_link::audio::Audio;
-use proj1_acoustic_link::modem::{Modem, Ofdm};
-use proj1_acoustic_link::node::{Receiver, Sender};
+use audio_network::audio::Audio;
+use audio_network::modem::{Modem, Ofdm};
+use audio_network::node::{Receiver, Sender};
 
 const ACK_MAGIC_NUMBER: [u8; 6] = [0x11, 0x45, 0x14, 0x19, 0x19, 0x81];
 const ACK_PAYLOAD_BYTES: usize = ACK_MAGIC_NUMBER.len();

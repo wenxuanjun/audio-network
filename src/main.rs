@@ -2,9 +2,9 @@ use argh::FromArgs;
 use ipnet::Ipv4Net;
 use std::io::{Read, Write};
 
-use proj1_acoustic_link::audio::Audio;
-use proj1_acoustic_link::modem::Ofdm;
-use proj1_acoustic_link::node::{Receiver, Sender};
+use audio_network::audio::Audio;
+use audio_network::modem::Ofdm;
+use audio_network::node::{Receiver, Sender};
 
 type TargetModem = Ofdm;
 
@@ -15,7 +15,7 @@ const DEFAULT_INFERFACE_NAME: &str = "anp0";
 const DEFAULT_IP_ADDRESS: &str = "11.45.14.19/24";
 
 #[derive(FromArgs)]
-#[argh(description = "AcousticLink Network adapter")]
+#[argh(description = "Create an audio based network interface")]
 struct Args {
     #[argh(option, short = 'i')]
     #[argh(description = "interface name of the adapter")]

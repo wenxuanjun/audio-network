@@ -1,8 +1,8 @@
 use jack::ProcessScope;
 use std::sync::atomic::Ordering;
 
-use proj1_acoustic_link::audio::AudioDeactivateFlag;
-use proj1_acoustic_link::audio::{Audio, AudioPorts};
+use audio_network::audio::AudioDeactivateFlag;
+use audio_network::audio::{Audio, AudioPorts};
 
 #[test]
 #[ignore]
